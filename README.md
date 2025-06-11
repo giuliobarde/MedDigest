@@ -31,7 +31,7 @@ cd MedDigest
 
 2. Run the script:
 ```bash
-python fetch_medical_week.py
+python categorize_articles.py
 ```
 
 The script will fetch medical papers from the last 7 days and output their abstracts and conclusions.
