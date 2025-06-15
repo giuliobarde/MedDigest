@@ -15,6 +15,32 @@ MedDigest is a tool that automatically collects and processes medical research p
 - Handles API rate limiting and connection issues
 - Provides structured output for further analysis
 
+## Architecture
+
+```mermaid
+graph TD
+    A[ArXiv] --> B[Documents]
+    C[Query] --> D[LLM]
+    B --> D
+    D --> E[Response]
+    E --> F[Newsletter]
+
+    subgraph "Data Retrieval"
+        A
+        B
+    end
+
+    subgraph "AI Processing"
+        C
+        D
+        E
+    end
+
+    subgraph "Output Generation"
+        F
+    end
+```
+
 ## Requirements
 
 - Python 3.x
@@ -31,7 +57,7 @@ cd MedDigest
 
 2. Run the script:
 ```bash
-python categorize_articles.py
+python3 categorize_articles.py
 ```
 
 The script will fetch medical papers from the last 7 days and output their abstracts and conclusions.
