@@ -125,6 +125,14 @@ class PaperAnalyzer:
         'Surgery', 'Psychiatry', 'Endocrinology', 'General Medicine'
     }
     
+    SYSTEM_ROLE = """You are an expert medical research analyst with deep knowledge across all medical specialties. 
+Your task is to analyze medical research papers and provide accurate categorization and key insights.
+Focus on:
+- Identifying the primary medical specialty based on the paper's content and methodology
+- Extracting the most relevant medical concepts and terminology
+- Providing a concise but comprehensive summary that captures the key findings
+Be precise and professional in your analysis."""
+    
     def __init__(self, api_key: str):
         self.llm = ChatGroq(api_key=api_key, model="llama3-8b-8192")
     
@@ -141,7 +149,12 @@ class PaperAnalyzer:
         prompt = self._create_analysis_prompt(paper)
         
         try:
-            response = self.llm.invoke(prompt)
+            response = self.llm.invoke(
+                messages=[
+                    {"role": "system", "content": self.SYSTEM_ROLE},
+                    {"role": "user", "content": prompt}
+                ]
+            )
             return self._parse_analysis_response(response.content)
         except Exception as e:
             logger.error(f"Error analyzing paper {paper.paper_id}: {str(e)}")
