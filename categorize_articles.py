@@ -7,6 +7,13 @@ from typing import List, Dict, Set, Optional
 from urllib.parse import urlencode
 from langchain_groq import ChatGroq
 import time
+from dotenv import load_dotenv
+import os
+import json
+import re
+
+# Load environment variables
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(
@@ -152,36 +159,49 @@ class PaperAnalyzer:
         arXiv Categories: {', '.join(paper.categories)}
         
         Provide:
-        1. Medical specialty (ONE of: {', '.join(sorted(self.VALID_SPECIALTIES))})
-        2. 5 key medical concepts/terms from this research
-        3. Main research focus in one sentence
+        1. Summary of the paper in one paragraph. A couple of sentences about the abstract and 2-3 sentences about the conclusion.
+        2. Medical specialty (ONE of: {', '.join(sorted(self.VALID_SPECIALTIES))})
+        3. 5 key medical concepts/terms from this research
         
-        Format your response EXACTLY like this:
-        Specialty: [specialty]
-        Keywords: [keyword1], [keyword2], [keyword3], [keyword4], [keyword5]
-        Focus: [one sentence description]
+        Format your response as a JSON object with the following structure:
+        {{
+            "summary": "summary of the paper",
+            "specialty": "medical specialty",
+            "keywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"]
+        }}
         """
     
     def _parse_analysis_response(self, response: str) -> Optional[PaperAnalysis]:
         """Parse the AI response into a PaperAnalysis object."""
-        lines = response.strip().split('\n')
-        specialty = None
-        keywords = []
-        focus = ""
-        
-        for line in lines:
-            if line.startswith("Specialty:"):
-                specialty = line.replace("Specialty:", "").strip()
-            elif line.startswith("Keywords:"):
-                keywords_text = line.replace("Keywords:", "").strip()
-                keywords = [k.strip() for k in keywords_text.split(',')][:5]
-            elif line.startswith("Focus:"):
-                focus = line.replace("Focus:", "").strip()
-        
-        if not specialty or specialty not in self.VALID_SPECIALTIES:
-            return None
+        try:
+            # Find JSON object in the response
+            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            if not json_match:
+                logger.error(f"Could not find JSON in response: {response}")
+                return None
+                
+            json_str = json_match.group(0)
+            data = json.loads(json_str)
             
-        return PaperAnalysis(specialty=specialty, keywords=keywords, focus=focus)
+            # Validate required fields
+            if not all(key in data for key in ['summary', 'specialty', 'keywords']):
+                logger.error(f"Missing required fields in response: {data}")
+                return None
+                
+            # Validate specialty
+            if data['specialty'] not in self.VALID_SPECIALTIES:
+                logger.error(f"Invalid specialty: {data['specialty']}")
+                return None
+                
+            return PaperAnalysis(
+                specialty=data['specialty'],
+                keywords=data['keywords'][:5],  # Ensure we only take up to 5 keywords
+                focus=data['summary']  # Use the summary as the focus
+            )
+            
+        except Exception as e:
+            logger.error(f"Error parsing analysis response: {str(e)}")
+            return None
 
 class ResearchDigest:
     """Main class for generating medical research digests."""
@@ -280,7 +300,7 @@ class ResearchDigest:
         logger.info("MEDICAL RESEARCH DIGEST SUMMARY")
         logger.info("="*60)
         
-        # Prepare data for AI summary
+        # Prepare data for summary
         summary_data = []
         for specialty, data in self.specialty_data.items():
             for paper in data["papers"]:
@@ -291,7 +311,11 @@ class ResearchDigest:
                     "keywords": paper["keywords"]
                 })
         
-        # Create prompt for AI summary
+        if not summary_data:
+            logger.info("\nNo papers were analyzed. Please ensure papers were successfully fetched and analyzed.")
+            return
+
+        # Create prompt for AI summary using the structured data
         prompt = f"""
         Based on the following medical research papers, provide a 2-3 paragraph summary highlighting the most significant findings and trends. Focus on:
         1. Major breakthroughs or novel approaches
@@ -320,6 +344,17 @@ class ResearchDigest:
             logger.info(f"\nTotal Papers Analyzed: {total_papers}")
             logger.info(f"Number of Specialties: {specialties}")
             
+            # Display top keywords across all specialties
+            all_keywords = {}
+            for specialty, data in self.specialty_data.items():
+                for kw in data["all_keywords"]:
+                    all_keywords[kw.lower()] = all_keywords.get(kw.lower(), 0) + 1
+            
+            logger.info("\nTop Research Terms Across All Specialties:")
+            top_keywords = sorted(all_keywords.items(), key=lambda x: x[1], reverse=True)[:10]
+            for keyword, count in top_keywords:
+                logger.info(f"  • {keyword} ({count} papers)")
+            
         except Exception as e:
             logger.error(f"Failed to generate AI summary: {str(e)}")
             # Fallback to basic statistics if AI summary fails
@@ -346,14 +381,13 @@ class Newsletter:
 
 def main():
     """Main entry point for the script."""
-    API_KEY = "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"
-    
-    try:
-        digest = ResearchDigest(API_KEY)
-        digest.generate_digest()
-    except Exception as e:
-        logger.error(f"An error occurred: {str(e)}")
-        raise
+    api_key = os.getenv('GROQ_API_KEY')
+    if not api_key:
+        logger.error("GROQ_API_KEY environment variable not set. Please set it in your .env file.")
+        return
+
+    digest = ResearchDigest(api_key)
+    digest.generate_digest()
 
 if __name__ == "__main__":
     main()
