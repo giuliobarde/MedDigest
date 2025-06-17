@@ -96,7 +96,7 @@ Be precise and professional in your analysis."""
         arXiv Categories: {', '.join(paper.categories)}
         
         Provide:
-        1. Summary of the paper in one paragraph. A couple of sentences about the abstract and 2-3 sentences about the conclusion.
+        1. Summary of the paper in one paragraph. Write 2-3 sentences about the abstract and 2-3 sentences about the conclusion.
         2. Medical specialty (ONE of: {', '.join(sorted(self.VALID_SPECIALTIES))})
         3. 5 key medical concepts/terms from this research
         
