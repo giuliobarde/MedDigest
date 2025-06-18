@@ -146,84 +146,100 @@ class ResearchDigest:
     def _digest_summary(self) -> None:
         """
         Generate a concise AI-powered summary of key findings across all papers.
-        
-        Note:
-            This method:
-            1. Prepares structured data for AI analysis
-            2. Generates a comprehensive summary using AI
-            3. Provides fallback statistics if AI summary fails
-            4. Includes cross-specialty insights and trends
+        Outputs JSON that can be used by the Newsletter class.
         """
-        logger.info("\n" + "="*60)
-        logger.info("MEDICAL RESEARCH DIGEST SUMMARY")
-        logger.info("="*60)
-        
-        # Prepare data for summary
-        summary_data = []
+        papers_with_summaries = []
+
         for specialty, data in self.specialty_data.items():
             for paper in data["papers"]:
-                summary_data.append({
-                    "specialty": specialty,
+                paper_info = {
                     "title": paper["title"],
+                    "specialty": specialty,
                     "focus": paper["focus"],
-                    "keywords": paper["keywords"]
-                })
-        
-        if not summary_data:
+                    "date": paper["date"],
+                    "authors": paper["authors"],
+                    "summary": "",
+                    "main_discovery": "",
+                    "implications": "",
+                    "challenges": "",
+                    "looking_forward": ""
+                }
+
+                # Generate analysis for each paper
+                try:
+                    prompt = f"""
+                    Analyze this medical research paper and provide the following information:
+                    
+                    Title: {paper['title']}
+                    Specialty: {specialty}
+                    Focus: {paper['focus']}
+                    Keywords: {', '.join(paper['keywords'])}
+                    
+                    Please provide:
+                    1. Summary: A comprehensive 5-6 sentence overview of the research
+                    2. Main Discovery: The key breakthrough or finding in one sentence
+                    3. Implications: The potential impact on medical practice in 1-2 sentences
+                    4. Challenges: Main obstacles or limitations identified in one sentence
+                    5. Looking Forward: Future directions or next steps in one sentence
+                    
+                    Format your response exactly as:
+                    Summary: [your 5-6 sentence summary]
+                    Main Discovery: [key finding]
+                    Implications: [medical impact]
+                    Challenges: [obstacles]
+                    Looking Forward: [future directions]
+                    """
+
+                    response = self.llm.invoke(input=prompt)
+                    content = response.content.strip()
+
+                    # Parse the response
+                    lines = content.split('\n')
+                    for line in lines:
+                        if line.startswith('Summary:'):
+                            paper_info["summary"] = line.replace('Summary:', '').strip()
+                        elif line.startswith('Main Discovery:'):
+                            paper_info["main_discovery"] = line.replace('Main Discovery:', '').strip()
+                        elif line.startswith('Implications:'):
+                            paper_info["implications"] = line.replace('Implications:', '').strip()
+                        elif line.startswith('Challenges:'):
+                            paper_info["challenges"] = line.replace('Challenges:', '').strip()
+                        elif line.startswith('Looking Forward:'):
+                            paper_info["looking_forward"] = line.replace('Looking Forward:', '').strip()
+
+                    time.sleep(1)
+
+                except Exception as e:
+                    logger.warning(f"Failed to generate analysis for paper: {str(e)}")
+                    # Fallback content
+                    paper_info["summary"] = (f"This research focuses on {paper['focus']}. "
+                                        f"The study investigates key aspects of {specialty} "
+                                        f"with emphasis on {paper['keywords'][0] if paper['keywords'] else 'innovative approaches'}. "
+                                        f"The research aims to advance our understanding in this field. "
+                                        f"It contributes to the growing body of knowledge in {specialty}. "
+                                        f"The findings have potential applications in clinical practice.")
+                    paper_info["main_discovery"] = f"Advances in {paper['keywords'][0] if paper['keywords'] else 'medical research'}."
+                    paper_info["implications"] = f"Potential to improve {specialty} practices."
+                    paper_info["challenges"] = "Further validation and implementation required."
+                    paper_info["looking_forward"] = "Future studies needed to expand on these findings."
+
+                papers_with_summaries.append(paper_info)
+
+        if not papers_with_summaries:
             logger.info("\nNo papers were analyzed. Please ensure papers were successfully fetched and analyzed.")
             return
 
-        # Create prompt for AI summary using the structured data
-        prompt = f"""
-        Based on the following medical research papers, provide a 2-3 paragraph summary highlighting the most significant findings and trends. Focus on:
-        1. Major breakthroughs or novel approaches
-        2. Common themes across different specialties
-        3. Potential impact on medical practice
+        # Create simplified output structure for newsletter
+        output_json = {
+            "date_generated": datetime.datetime.now().strftime("%B %d, %Y"),
+            "papers": papers_with_summaries,
+            "total_papers": len(papers_with_summaries)
+        }
 
-        Papers to analyze:
-        {[f"- {p['specialty']}: {p['title']} (Focus: {p['focus']})" for p in summary_data]}
-
-        Provide a concise, engaging summary that would be valuable for medical professionals.
-        """
-        
-        try:
-            # Generate AI summary
-            response = self.llm.invoke(input=prompt)
-            summary = response.content.strip()
-            
-            # Display the summary
-            logger.info("\nKEY FINDINGS AND TRENDS:")
-            logger.info("-"*50)
-            logger.info(f"\n{summary}\n")
-            
-            # Add some basic statistics
-            total_papers = sum(len(data["papers"]) for data in self.specialty_data.values())
-            specialties = len(self.specialty_data)
-            logger.info(f"\nTotal Papers Analyzed: {total_papers}")
-            logger.info(f"Number of Specialties: {specialties}")
-            
-            # Display top keywords across all specialties
-            all_keywords = {}
-            for specialty, data in self.specialty_data.items():
-                for kw in data["all_keywords"]:
-                    all_keywords[kw.lower()] = all_keywords.get(kw.lower(), 0) + 1
-            
-            logger.info("\nTop Research Terms Across All Specialties:")
-            top_keywords = sorted(all_keywords.items(), key=lambda x: x[1], reverse=True)[:10]
-            for keyword, count in top_keywords:
-                logger.info(f"  • {keyword} ({count} papers)")
-            
-        except Exception as e:
-            logger.error(f"Failed to generate AI summary: {str(e)}")
-            # Fallback to basic statistics if AI summary fails
-            logger.info("\nBasic Research Overview:")
-            logger.info("-"*50)
-            for specialty, data in sorted(
-                self.specialty_data.items(),
-                key=lambda x: len(x[1]["papers"]),
-                reverse=True
-            ):
-                logger.info(f"\n{specialty}: {len(data['papers'])} papers")
-                logger.info(f"Top keywords: {', '.join(sorted(set(data['all_keywords']))[:5])}")
-        
         logger.info("\n" + "="*60)
+        logger.info("JSON DIGEST SUMMARY:")
+        logger.info("="*60)
+
+        print(json.dumps(output_json, indent=2, ensure_ascii=False))
+
+        self.digest_json = output_json
