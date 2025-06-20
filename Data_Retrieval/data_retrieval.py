@@ -1,4 +1,5 @@
 # Standard library imports for HTTP requests and XML parsing
+import time
 import requests
 import xml.etree.ElementTree as ET
 from typing import List
@@ -37,7 +38,7 @@ class ArxivClient:
         self.session = requests.Session()
         self.session.headers.update(self.headers)
     
-    def fetch_papers(self, search_query: str, max_results: int = 20) -> List[Paper]:
+    def fetch_papers(self, search_query: str, max_results: int = 10) -> List[Paper]:
         """
         Fetch papers from arXiv API with retry logic and exponential backoff.
         

@@ -3,6 +3,9 @@ from Data_Retrieval.data_retrieval import ArxivClient
 from AI_Processing.paper_analyzer import PaperAnalyzer
 from typing import List, Dict
 import logging
+import time
+import datetime
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +33,7 @@ class ResearchDigest:
         self.llm = self.analyzer.llm  # Get LLM instance from analyzer
         self.specialty_data: Dict[str, Dict] = {}
     
-    def generate_digest(self, search_query: str = "all:medical", max_results: int = 100) -> None:
+    def generate_digest(self, search_query: str = "all:medical", max_results: int = 10) -> None:
         """
         Generate a research digest for medical papers.
         
@@ -43,11 +46,12 @@ class ResearchDigest:
             and AI-generated summaries of key findings.
         """
         logger.info("Fetching papers from arXiv...")
-        papers = self.arxiv_client.fetch_papers(search_query, max_results)
+        papers = self.arxiv_client.fetch_papers(search_query)
         logger.info(f"Found {len(papers)} papers")
         
         self._analyze_papers(papers)
         self._display_summary()
+        time.sleep(60) # wait 1 minute before generating the digest
         self._digest_summary()
     
     def _analyze_papers(self, papers: List[Paper]) -> None:
@@ -148,98 +152,104 @@ class ResearchDigest:
         Generate a concise AI-powered summary of key findings across all papers.
         Outputs JSON that can be used by the Newsletter class.
         """
-        papers_with_summaries = []
+
+        # Collect all paper information for comprehensive analysis
+        all_papers_info = []
+        specialty_breakdown = {}
 
         for specialty, data in self.specialty_data.items():
+            specialty_breakdown[specialty] = len(data["papers"])
             for paper in data["papers"]:
-                paper_info = {
+                paper_summary = {
                     "title": paper["title"],
                     "specialty": specialty,
                     "focus": paper["focus"],
                     "date": paper["date"],
                     "authors": paper["authors"],
-                    "summary": "",
-                    "main_discovery": "",
-                    "implications": "",
-                    "challenges": "",
-                    "looking_forward": ""
+                    "keywords": paper["keywords"]
                 }
+                all_papers_info.append(paper_summary)
 
-                # Generate analysis for each paper
-                try:
-                    prompt = f"""
-                    Analyze this medical research paper and provide the following information:
-                    
-                    Title: {paper['title']}
-                    Specialty: {specialty}
-                    Focus: {paper['focus']}
-                    Keywords: {', '.join(paper['keywords'])}
-                    
-                    Please provide:
-                    1. Summary: A comprehensive 5-6 sentence overview of the research
-                    2. Main Discovery: The key breakthrough or finding in one sentence
-                    3. Implications: The potential impact on medical practice in 1-2 sentences
-                    4. Challenges: Main obstacles or limitations identified in one sentence
-                    5. Looking Forward: Future directions or next steps in one sentence
-                    
-                    Format your response exactly as:
-                    Summary: [your 5-6 sentence summary]
-                    Main Discovery: [key finding]
-                    Implications: [medical impact]
-                    Challenges: [obstacles]
-                    Looking Forward: [future directions]
-                    """
+        # Create coprehensive prompt for combined analysis
+        try:
+            # Prepare paper summaries for prompt
+            papers_text = []
+            for i, paper in enumerate(all_papers_info, 1):
+                paper_text = f"""
+                Paper {i}:
+                Title: {paper['title']}
+                Specialty: {paper['specialty']}
+                Focus: {paper['focus']}
+                Date: {paper['date']}
+                Authors: {paper['authors']}
+                Keywords: {paper['keywords']}
+                """
+                papers_text.append(paper_text)
 
-                    response = self.llm.invoke(input=prompt)
-                    content = response.content.strip()
+            combined_papers = '\n'.join(papers_text)
 
-                    # Parse the response
-                    lines = content.split('\n')
-                    for line in lines:
-                        if line.startswith('Summary:'):
-                            paper_info["summary"] = line.replace('Summary:', '').strip()
-                        elif line.startswith('Main Discovery:'):
-                            paper_info["main_discovery"] = line.replace('Main Discovery:', '').strip()
-                        elif line.startswith('Implications:'):
-                            paper_info["implications"] = line.replace('Implications:', '').strip()
-                        elif line.startswith('Challenges:'):
-                            paper_info["challenges"] = line.replace('Challenges:', '').strip()
-                        elif line.startswith('Looking Forward:'):
-                            paper_info["looking_forward"] = line.replace('Looking Forward:', '').strip()
+            # System prompt that defines the AI's role and analysis requirements
+            SYSTEM_ROLE = """
+            You are an expert medical research analyst with deep knowledge across all medical specialties. 
+            Your task is to summarize and present the key findings of recently published papers across multiple medical specialties how they interact with eachother.
+            """
 
-                    time.sleep(1)
+            prompt = f"""
+            Analyze this collection of {len(all_papers_info)} medical research papers published this past week and provide a comprehensive digest:
+            
+            PAPERS TO ANALYZE:
+            {combined_papers}
+            
+            SPECIALTY BREAKDOWN:
+            {', '.join([f"{spec}: {count} papers" for spec, count in specialty_breakdown.items()])}
+            
+            Please provide a comprehensive analysis with the following sections:
+            
+            1. EXECUTIVE SUMMARY: A 2-3 paragraph overview of the entire research collection
+            2. KEY DISCOVERIES: Top 10 most significant findings across all papers (bullet points)
+            3. EMERGING TRENDS: 3-4 major trends or patterns identified across multiple papers if any
+            4. CROSS-SPECIALTY INSIGHTS: How different medical fields are interconnecting in this research
+            5. CLINICAL IMPLICATIONS: Potential impact on medical practice and patient care
+            6. RESEARCH GAPS: Areas that need further investigation
+            7. FUTURE DIRECTIONS: Where this collective research is heading
+            
+            Format your response as a JSON object and provide actionable insights that synthesize information across all papers rather than discussing individual studies. 
+            Only provide insights based on the material you have been provided with.
 
-                except Exception as e:
-                    logger.warning(f"Failed to generate analysis for paper: {str(e)}")
-                    # Fallback content
-                    paper_info["summary"] = (f"This research focuses on {paper['focus']}. "
-                                        f"The study investigates key aspects of {specialty} "
-                                        f"with emphasis on {paper['keywords'][0] if paper['keywords'] else 'innovative approaches'}. "
-                                        f"The research aims to advance our understanding in this field. "
-                                        f"It contributes to the growing body of knowledge in {specialty}. "
-                                        f"The findings have potential applications in clinical practice.")
-                    paper_info["main_discovery"] = f"Advances in {paper['keywords'][0] if paper['keywords'] else 'medical research'}."
-                    paper_info["implications"] = f"Potential to improve {specialty} practices."
-                    paper_info["challenges"] = "Further validation and implementation required."
-                    paper_info["looking_forward"] = "Future studies needed to expand on these findings."
+            JSON FORMAT:
+            {{
+                "executive_summary": "EXECUTIVE SUMMARY",
+                "key_discoveries": "KEY DISCOVERIES",
+                "emerging_trends": "EMERGING TRENDS",
+                "cross_specialty_insights": "CROSS-SPECIALTY INSIGHTS",
+                "clinical_implications": "CLINICAL IMPLICATIONS",
+                "research_gaps": "RESEARCH GAPS",
+                "future_directions": "FUTURE DIRECTIONS",
+            }}
+            """
 
-                papers_with_summaries.append(paper_info)
+            response = self.llm.invoke(
+                input=[
+                    {"role": "system", "content": SYSTEM_ROLE},
+                    {"role": "user", "content": prompt}
+                ]
+            )
 
-        if not papers_with_summaries:
-            logger.info("\nNo papers were analyzed. Please ensure papers were successfully fetched and analyzed.")
-            return
+            # Try to parse the response as JSON
+            try:
+                if hasattr(response, 'content'):
+                    response_text = response.content
+                elif isinstance(response, dict) and 'content' in response:
+                    response_text = response['content']
+                else:
+                    response_text = str(response)
 
-        # Create simplified output structure for newsletter
-        output_json = {
-            "date_generated": datetime.datetime.now().strftime("%B %d, %Y"),
-            "papers": papers_with_summaries,
-            "total_papers": len(papers_with_summaries)
-        }
+                digest_json = json.loads(response_text)
+                print(json.dumps(digest_json, indent=2))
 
-        logger.info("\n" + "="*60)
-        logger.info("JSON DIGEST SUMMARY:")
-        logger.info("="*60)
-
-        print(json.dumps(output_json, indent=2, ensure_ascii=False))
-
-        self.digest_json = output_json
+            except json.JSONDecodeError as e:
+                print("[ERROR] Could not parse LLM response as JSON:", e)
+                print("Raw response:", response_text)
+                
+        except Exception as e:
+            print(f"[ERROR] Exception during digest summary: {e}")
