@@ -27,13 +27,15 @@ class PaperAnalyzer:
     }
     
     # System prompt that defines the AI's role and analysis requirements
-    SYSTEM_ROLE = """You are an expert medical research analyst with deep knowledge across all medical specialties. 
-Your task is to analyze medical research papers and provide accurate categorization and key insights.
-Focus on:
-- Identifying the primary medical specialty based on the paper's content and methodology
-- Extracting the most relevant medical concepts and terminology
-- Providing a concise but comprehensive summary that captures the key findings
-Be precise and professional in your analysis."""
+    SYSTEM_ROLE = """
+    You are an expert medical research analyst with deep knowledge across all medical specialties. 
+    Your task is to analyze medical research papers and provide accurate categorization and key insights.
+    Focus on:
+    - Identifying the primary medical specialty based on the paper's content and methodology
+    - Extracting the most relevant medical concepts and terminology
+    - Providing a concise but comprehensive summary that captures the key findings
+    Be precise and professional in your analysis.
+    """
     
     def __init__(self, api_key: str):
         """
@@ -132,20 +134,28 @@ Be precise and professional in your analysis."""
             json_str = json_match.group(0)
             data = json.loads(json_str)
             
-            # Validate required fields
-            if not all(key in data for key in ['summary', 'specialty', 'keywords']):
-                logger.error(f"Missing required fields in response: {data}")
+            # Validate and sanitize required fields
+            summary = data.get('summary')
+            if not isinstance(summary, str):
+                summary = str(summary) if summary is not None else ''
+            
+            keywords = data.get('keywords')
+            if not isinstance(keywords, list):
+                keywords = []
+            else:
+                # Ensure all keywords are strings
+                keywords = [str(kw) for kw in keywords if isinstance(kw, (str, int, float))]
+            keywords = keywords[:5]
+            
+            specialty = data.get('specialty')
+            if not isinstance(specialty, str) or specialty not in self.VALID_SPECIALTIES:
+                logger.error(f"Invalid specialty: {specialty}")
                 return None
-                
-            # Validate specialty
-            if data['specialty'] not in self.VALID_SPECIALTIES:
-                logger.error(f"Invalid specialty: {data['specialty']}")
-                return None
-                
+            
             return PaperAnalysis(
-                specialty=data['specialty'],
-                keywords=data['keywords'][:5],  # Ensure we only take up to 5 keywords
-                focus=data['summary']  # Use the summary as the focus
+                specialty=specialty,
+                keywords=keywords,
+                focus=summary
             )
             
         except Exception as e:
