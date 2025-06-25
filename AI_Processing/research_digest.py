@@ -6,6 +6,7 @@ import logging
 import time
 import datetime
 import json
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -33,13 +34,16 @@ class ResearchDigest:
         self.llm = self.analyzer.llm  # Get LLM instance from analyzer
         self.specialty_data: Dict[str, Dict] = {}
     
-    def generate_digest(self, search_query: str = "all:medical", max_results: int = 10) -> None:
+    def generate_digest(self, search_query: str = "all:medical", max_results: int = 10) -> Dict:
         """
         Generate a research digest for medical papers.
         
         Args:
             search_query (str): The search query to use for finding papers
             max_results (int): Maximum number of papers to analyze
+            
+        Returns:
+            Dict: The digest summary as a dictionary
             
         Note:
             The digest includes paper analysis, specialty categorization,
@@ -52,7 +56,7 @@ class ResearchDigest:
         self._analyze_papers(papers)
         self._display_summary()
         time.sleep(60) # wait 1 minute before generating the digest
-        self._digest_summary()
+        return self._digest_summary()
     
     def _analyze_papers(self, papers: List[Paper]) -> None:
         """
@@ -147,10 +151,60 @@ class ResearchDigest:
             for keyword, count in top_keywords:
                 logger.info(f"  • {keyword} ({count} papers)")
 
-    def _digest_summary(self) -> None:
+    def _extract_json_from_response(self, response_text: str) -> Dict:
+        """
+        Extract JSON object from LLM response that might contain additional text.
+        
+        Args:
+            response_text (str): The full response from the LLM
+            
+        Returns:
+            Dict: Parsed JSON object
+            
+        Raises:
+            json.JSONDecodeError: If no valid JSON is found
+        """
+        # Try to find JSON object in the response
+        # Look for content between { and } that spans multiple lines
+        json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+        
+        # Find all potential JSON objects
+        matches = re.findall(json_pattern, response_text, re.DOTALL)
+        
+        for match in matches:
+            try:
+                # Try to parse each potential JSON match
+                parsed_json = json.loads(match)
+                # Verify it has the expected structure
+                expected_keys = ['executive_summary', 'key_discoveries', 'emerging_trends', 
+                               'cross_specialty_insights', 'clinical_implications', 
+                               'research_gaps', 'future_directions']
+                if any(key in parsed_json for key in expected_keys):
+                    return parsed_json
+            except json.JSONDecodeError:
+                continue
+        
+        # If no JSON found in regex matches, try to find JSON by looking for braces
+        start_brace = response_text.find('{')
+        end_brace = response_text.rfind('}')
+        
+        if start_brace != -1 and end_brace != -1 and end_brace > start_brace:
+            potential_json = response_text[start_brace:end_brace + 1]
+            try:
+                return json.loads(potential_json)
+            except json.JSONDecodeError:
+                pass
+        
+        # If still no valid JSON, raise an error
+        raise json.JSONDecodeError("No valid JSON found in response", response_text, 0)
+
+    def _digest_summary(self) -> Dict:
         """
         Generate a concise AI-powered summary of key findings across all papers.
-        Outputs JSON that can be used by the Newsletter class.
+        Returns a dictionary that can be used by the Newsletter class.
+        
+        Returns:
+            Dict: The digest summary as a dictionary
         """
 
         # Collect all paper information for comprehensive analysis
@@ -170,7 +224,23 @@ class ResearchDigest:
                 }
                 all_papers_info.append(paper_summary)
 
-        # Create coprehensive prompt for combined analysis
+        # If no papers were successfully analyzed, return a default structure
+        if not all_papers_info:
+            logger.warning("No papers were successfully analyzed. Returning empty digest.")
+            return {
+                "executive_summary": "No papers were successfully analyzed in this digest cycle.",
+                "key_discoveries": [],
+                "emerging_trends": [],
+                "cross_specialty_insights": [],
+                "clinical_implications": [],
+                "research_gaps": [],
+                "future_directions": [],
+                "date_generated": datetime.datetime.now().strftime("%Y-%m-%d"),
+                "total_papers": 0,
+                "specialties": []
+            }
+
+        # Create comprehensive prompt for combined analysis
         try:
             # Prepare paper summaries for prompt
             papers_text = []
@@ -191,7 +261,8 @@ class ResearchDigest:
             # System prompt that defines the AI's role and analysis requirements
             SYSTEM_ROLE = """
             You are an expert medical research analyst with deep knowledge across all medical specialties. 
-            Your task is to summarize and present the key findings of recently published papers across multiple medical specialties how they interact with eachother.
+            Your task is to summarize and present the key findings of recently published papers across multiple medical specialties and how they interact with each other.
+            You must respond with ONLY a valid JSON object, no additional text before or after.
             """
 
             prompt = f"""
@@ -203,29 +274,20 @@ class ResearchDigest:
             SPECIALTY BREAKDOWN:
             {', '.join([f"{spec}: {count} papers" for spec, count in specialty_breakdown.items()])}
             
-            Please provide a comprehensive analysis with the following sections:
+            Provide a comprehensive analysis with the following sections. Respond with ONLY a valid JSON object:
             
-            1. EXECUTIVE SUMMARY: A 2-3 paragraph overview of the entire research collection
-            2. KEY DISCOVERIES: Top 10 most significant findings across all papers (bullet points)
-            3. EMERGING TRENDS: 3-4 major trends or patterns identified across multiple papers if any
-            4. CROSS-SPECIALTY INSIGHTS: How different medical fields are interconnecting in this research
-            5. CLINICAL IMPLICATIONS: Potential impact on medical practice and patient care
-            6. RESEARCH GAPS: Areas that need further investigation
-            7. FUTURE DIRECTIONS: Where this collective research is heading
-            
-            Format your response as a JSON object and provide actionable insights that synthesize information across all papers rather than discussing individual studies. 
-            Only provide insights based on the material you have been provided with.
-
-            JSON FORMAT:
             {{
-                "executive_summary": "EXECUTIVE SUMMARY",
-                "key_discoveries": "KEY DISCOVERIES",
-                "emerging_trends": "EMERGING TRENDS",
-                "cross_specialty_insights": "CROSS-SPECIALTY INSIGHTS",
-                "clinical_implications": "CLINICAL IMPLICATIONS",
-                "research_gaps": "RESEARCH GAPS",
-                "future_directions": "FUTURE DIRECTIONS",
+                "executive_summary": "A 2-3 paragraph overview of the entire research collection",
+                "key_discoveries": ["List of top 10 most significant findings across all papers"],
+                "emerging_trends": ["List of 3-4 major trends or patterns identified across multiple papers"],
+                "cross_specialty_insights": ["How different medical fields are interconnecting in this research"],
+                "clinical_implications": ["Potential impact on medical practice and patient care"],
+                "research_gaps": ["Areas that need further investigation"],
+                "future_directions": ["Where this collective research is heading"]
             }}
+            
+            Provide actionable insights that synthesize information across all papers rather than discussing individual studies. 
+            Only provide insights based on the material you have been provided with.
             """
 
             response = self.llm.invoke(
@@ -235,21 +297,58 @@ class ResearchDigest:
                 ]
             )
 
-            # Try to parse the response as JSON
-            try:
-                if hasattr(response, 'content'):
-                    response_text = response.content
-                elif isinstance(response, dict) and 'content' in response:
-                    response_text = response['content']
-                else:
-                    response_text = str(response)
+            # Extract response text
+            if hasattr(response, 'content'):
+                response_text = response.content
+            elif isinstance(response, dict) and 'content' in response:
+                response_text = response['content']
+            else:
+                response_text = str(response)
 
-                digest_json = json.loads(response_text)
-                print(json.dumps(digest_json, indent=2))
+            # Try to extract and parse JSON from the response
+            try:
+                digest_json = self._extract_json_from_response(response_text)
+                
+                # Add metadata
+                digest_json['date_generated'] = datetime.datetime.now().strftime("%Y-%m-%d")
+                digest_json['total_papers'] = len(all_papers_info)
+                digest_json['specialties'] = list(specialty_breakdown.keys())
+                digest_json['papers'] = all_papers_info
+                logger.info("Successfully generated digest summary")
+                return digest_json
 
             except json.JSONDecodeError as e:
-                print("[ERROR] Could not parse LLM response as JSON:", e)
-                print("Raw response:", response_text)
+                logger.error(f"Could not parse LLM response as JSON: {e}")
+                logger.error(f"Raw response: {response_text}")
+                
+                # Return a fallback structure
+                return {
+                    "executive_summary": "Error occurred while generating AI summary. Raw analysis data available.",
+                    "key_discoveries": [f"Analysis of {len(all_papers_info)} papers across {len(specialty_breakdown)} specialties"],
+                    "emerging_trends": ["Unable to generate AI analysis due to parsing error"],
+                    "cross_specialty_insights": ["Manual review of papers recommended"],
+                    "clinical_implications": ["Individual paper review needed for clinical insights"],
+                    "research_gaps": ["AI analysis unavailable"],
+                    "future_directions": ["Manual analysis required"],
+                    "date_generated": datetime.datetime.now().strftime("%Y-%m-%d"),
+                    "total_papers": len(all_papers_info),
+                    "specialties": list(specialty_breakdown.keys()),
+                    "error": "JSON parsing failed"
+                }
                 
         except Exception as e:
-            print(f"[ERROR] Exception during digest summary: {e}")
+            logger.error(f"Exception during digest summary: {e}")
+            # Return a fallback structure
+            return {
+                "executive_summary": "Error occurred during digest generation.",
+                "key_discoveries": [],
+                "emerging_trends": [],
+                "cross_specialty_insights": [],
+                "clinical_implications": [],
+                "research_gaps": [],
+                "future_directions": [],
+                "date_generated": datetime.datetime.now().strftime("%Y-%m-%d"),
+                "total_papers": len(all_papers_info) if 'all_papers_info' in locals() else 0,
+                "specialties": list(specialty_breakdown.keys()) if 'specialty_breakdown' in locals() else [],
+                "error": str(e)
+            }
