@@ -92,9 +92,9 @@ class PaperAnalyzer:
         Analyze this medical research paper:
         
         Title: {paper.title}
-        Abstract: {paper.abstract[:500]}
+        Abstract: {paper.abstract}
         Conclusion: {paper.conclusion}
-        Authors: {', '.join(paper.authors[:5])}
+        Authors: {', '.join(paper.authors)}
         arXiv Categories: {', '.join(paper.categories)}
         
         Provide:

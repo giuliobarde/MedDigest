@@ -6,7 +6,6 @@ import logging
 import time
 import datetime
 import json
-import re
 
 logger = logging.getLogger(__name__)
 
@@ -16,10 +15,11 @@ class ResearchDigest:
     Main class for generating medical research digests.
     
     This class orchestrates the process of:
-    1. Fetching medical research papers from arXiv
-    2. Analyzing papers using AI to extract key information
-    3. Organizing findings by medical specialty
-    4. Generating comprehensive summaries and insights
+    1. Fetching medical research papers from arXiv via data_retrieval.py
+    2. Analyzing papers using AI to extract key information via paper_analyzer.py
+    3. Analyzing the results of the AI analysis to generate a comprehensive summary and insights in batches of 20 papers at the time.
+    4. Generating comprehensive summaries and insights across all batches.
+    5. Saving the results to a JSON file.
     """
     
     def __init__(self, api_key: str):
@@ -33,18 +33,18 @@ class ResearchDigest:
         self.analyzer = PaperAnalyzer(api_key)
         self.llm = self.analyzer.llm  # Get LLM instance from analyzer
         self.specialty_data: Dict[str, Dict] = {}
-    
-    def generate_digest(self, search_query: str = "all:medical", max_results: int = 10) -> Dict:
+        self.batch_analyses: Dict[int, Dict] = {}
+
+    def generate_digest(self, search_query: str = "all:medical") -> Dict:
         """
-        Generate a research digest for medical papers.
+        Generate a research digest for medical papers in batches of 20 papers at the time.
         
         Args:
             search_query (str): The search query to use for finding papers
-            max_results (int): Maximum number of papers to analyze
             
         Returns:
             Dict: The digest summary as a dictionary
-            
+
         Note:
             The digest includes paper analysis, specialty categorization,
             and AI-generated summaries of key findings.
@@ -54,9 +54,17 @@ class ResearchDigest:
         logger.info(f"Found {len(papers)} papers")
         
         self._analyze_papers(papers)
-        self._display_summary()
-        time.sleep(60) # wait 1 minute before generating the digest
-        return self._digest_summary()
+        self._batch_analyze_papers(self.specialty_data)
+        
+        # Wait until the beginning of the next minute to avoid rate limiting
+        now = datetime.datetime.now()
+        next_minute = now.replace(second=0, microsecond=0) + datetime.timedelta(minutes=1)
+        wait_seconds = (next_minute - now).total_seconds()
+        time.sleep(wait_seconds)
+
+        # Generate and store the digest
+        self.digest_json = self._digest_summary()
+        return self.digest_json
     
     def _analyze_papers(self, papers: List[Paper]) -> None:
         """
@@ -64,10 +72,6 @@ class ResearchDigest:
         
         Args:
             papers (List[Paper]): List of papers to analyze
-            
-        Note:
-            Each paper is analyzed to determine its specialty,
-            key concepts, and main findings.
         """
         logger.info("Analyzing papers with AI...")
         
@@ -103,252 +107,449 @@ class ResearchDigest:
             "id": paper.paper_id,
             "title": paper.title,
             "authors": paper.authors,
+            "abstract": paper.abstract,
             "keywords": analysis.keywords,
             "focus": analysis.focus,
             "date": paper.published.strftime("%Y-%m-%d")
         })
         self.specialty_data[analysis.specialty]["all_keywords"].extend(analysis.keywords)
         self.specialty_data[analysis.specialty]["author_network"].update(paper.authors)
-    
-    def _display_summary(self) -> None:
-        """
-        Display the research summary organized by specialty.
-        
-        Note:
-            This method provides a detailed breakdown of:
-            - Number of papers per specialty
-            - Recent papers and their focus
-            - Top research terms and their frequency
-        """
-        logger.info("\n" + "="*60)
-        logger.info("MEDICAL RESEARCH SUMMARY BY SPECIALTY:")
-        logger.info("="*60)
-        
-        for specialty, data in sorted(
-            self.specialty_data.items(), 
-            key=lambda x: len(x[1]["papers"]), 
-            reverse=True
-        ):
-            num_papers = len(data["papers"])
-            num_authors = len(data["author_network"])
-            
-            logger.info(f"\n{specialty.upper()} ({num_papers} papers, {num_authors} unique authors)")
-            logger.info("-"*50)
-            
-            # Recent papers
-            logger.info("\nRecent Papers:")
-            for j, paper in enumerate(data["papers"][:3], 1):
-                logger.info(f"  {j}. [{paper['date']}] {paper['title'][:60]}...")
-                logger.info(f"     Focus: {paper['focus'][:80]}...")
-            
-            # Top keywords
-            keyword_freq = {}
-            for kw in data["all_keywords"]:
-                keyword_freq[kw.lower()] = keyword_freq.get(kw.lower(), 0) + 1
-            
-            logger.info("\nTop Research Terms:")
-            top_keywords = sorted(keyword_freq.items(), key=lambda x: x[1], reverse=True)[:8]
-            for keyword, count in top_keywords:
-                logger.info(f"  • {keyword} ({count} papers)")
 
-    def _extract_json_from_response(self, response_text: str) -> Dict:
+    def _batch_analyze_papers(self, specialty_data: Dict[str, Dict]) -> None:
         """
-        Extract JSON object from LLM response that might contain additional text.
+        Analyze the fetched papers using AI in batches of 20 papers at the time.
         
         Args:
-            response_text (str): The full response from the LLM
+            specialty_data (Dict[str, Dict]): Dictionary containing specialty data
+        """
+        logger.info("Analyzing papers with AI in batches of 20 papers at the time...")
+        
+        # Collect all papers from all specialties
+        all_papers = []
+        for specialty, data in specialty_data.items():
+            for paper in data['papers']:
+                paper['specialty'] = specialty  # Add specialty info to each paper
+                all_papers.append(paper)
+        
+        total_papers = len(all_papers)
+        total_batches = (total_papers + 19) // 20  # Calculate total number of batches
+        
+        logger.info(f"Total papers to analyze: {total_papers} in {total_batches} batches")
+        
+        for i in range(0, total_papers, 20):
+            batch_num = i // 20 + 1
+            batch = all_papers[i:i+20]
+            logger.info(f"Analyzing batch {batch_num} of {total_batches} ({len(batch)} papers)...")
             
-        Returns:
-            Dict: Parsed JSON object
-            
-        Raises:
-            json.JSONDecodeError: If no valid JSON is found
-        """
-        # Try to find JSON object in the response
-        # Look for content between { and } that spans multiple lines
-        json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
-        
-        # Find all potential JSON objects
-        matches = re.findall(json_pattern, response_text, re.DOTALL)
-        
-        for match in matches:
-            try:
-                # Try to parse each potential JSON match
-                parsed_json = json.loads(match)
-                # Verify it has the expected structure
-                expected_keys = ['executive_summary', 'key_discoveries', 'emerging_trends', 
-                               'cross_specialty_insights', 'clinical_implications', 
-                               'research_gaps', 'future_directions']
-                if any(key in parsed_json for key in expected_keys):
-                    return parsed_json
-            except json.JSONDecodeError:
-                continue
-        
-        # If no JSON found in regex matches, try to find JSON by looking for braces
-        start_brace = response_text.find('{')
-        end_brace = response_text.rfind('}')
-        
-        if start_brace != -1 and end_brace != -1 and end_brace > start_brace:
-            potential_json = response_text[start_brace:end_brace + 1]
-            try:
-                return json.loads(potential_json)
-            except json.JSONDecodeError:
-                pass
-        
-        # If still no valid JSON, raise an error
-        raise json.JSONDecodeError("No valid JSON found in response", response_text, 0)
-
-    def _digest_summary(self) -> Dict:
-        """
-        Generate a concise AI-powered summary of key findings across all papers.
-        Returns a dictionary that can be used by the Newsletter class.
-        
-        Returns:
-            Dict: The digest summary as a dictionary
-        """
-
-        # Collect all paper information for comprehensive analysis
-        all_papers_info = []
-        specialty_breakdown = {}
-
-        for specialty, data in self.specialty_data.items():
-            specialty_breakdown[specialty] = len(data["papers"])
-            for paper in data["papers"]:
-                paper_summary = {
-                    "title": paper["title"],
-                    "specialty": specialty,
-                    "focus": paper["focus"],
-                    "date": paper["date"],
-                    "authors": paper["authors"],
-                    "keywords": paper["keywords"]
-                }
-                all_papers_info.append(paper_summary)
-
-        # If no papers were successfully analyzed, return a default structure
-        if not all_papers_info:
-            logger.warning("No papers were successfully analyzed. Returning empty digest.")
-            return {
-                "executive_summary": "No papers were successfully analyzed in this digest cycle.",
-                "key_discoveries": [],
-                "emerging_trends": [],
-                "cross_specialty_insights": [],
-                "clinical_implications": [],
-                "research_gaps": [],
-                "future_directions": [],
-                "date_generated": datetime.datetime.now().strftime("%Y-%m-%d"),
-                "total_papers": 0,
-                "specialties": []
-            }
-
-        # Create comprehensive prompt for combined analysis
-        try:
-            # Prepare paper summaries for prompt
-            papers_text = []
-            for i, paper in enumerate(all_papers_info, 1):
-                paper_text = f"""
-                Paper {i}:
+            # Create detailed batch information for the prompt
+            batch_info = []
+            for j, paper in enumerate(batch, 1):
+                batch_info.append(f"""
+                Paper {j}:
                 Title: {paper['title']}
+                Authors: {', '.join(paper['authors'])}
+                Abstract: {paper['abstract']}
+                Published: {paper['date']}
                 Specialty: {paper['specialty']}
+                Keywords: {', '.join(paper['keywords'])}
                 Focus: {paper['focus']}
-                Date: {paper['date']}
-                Authors: {paper['authors']}
-                Keywords: {paper['keywords']}
-                """
-                papers_text.append(paper_text)
-
-            combined_papers = '\n'.join(papers_text)
-
-            # System prompt that defines the AI's role and analysis requirements
-            SYSTEM_ROLE = """
-            You are an expert medical research analyst with deep knowledge across all medical specialties. 
-            Your task is to summarize and present the key findings of recently published papers across multiple medical specialties and how they interact with each other.
-            You must respond with ONLY a valid JSON object, no additional text before or after.
-            """
-
+                """)
+            
+            batch_text = "\n".join(batch_info)
+            
             prompt = f"""
-            Analyze this collection of {len(all_papers_info)} medical research papers published this past week and provide a comprehensive digest:
+            Analyze the following batch of {len(batch)} medical research papers:
             
-            PAPERS TO ANALYZE:
-            {combined_papers}
+            {batch_text}
             
-            SPECIALTY BREAKDOWN:
-            {', '.join([f"{spec}: {count} papers" for spec, count in specialty_breakdown.items()])}
-            
-            Provide a comprehensive analysis with the following sections. Respond with ONLY a valid JSON object:
-            
+            Provide a comprehensive analysis in the following JSON format. IMPORTANT: Return ONLY valid JSON, no additional text:
             {{
-                "executive_summary": "A 2-3 paragraph overview of the entire research collection",
-                "key_discoveries": ["List of top 10 most significant findings across all papers"],
-                "emerging_trends": ["List of 3-4 major trends or patterns identified across multiple papers"],
-                "cross_specialty_insights": ["How different medical fields are interconnecting in this research"],
-                "clinical_implications": ["Potential impact on medical practice and patient care"],
-                "research_gaps": ["Areas that need further investigation"],
-                "future_directions": ["Where this collective research is heading"]
+                "batch_summary": "3-4 paragraph summary focusing on key findings and implications for current medical practices",
+                "significant_findings": ["List of top 10 most significant findings across all papers in this batch"],
+                "major_trends": ["List of 3-4 major trends or patterns identified across multiple papers in this batch"],
+                "medical_impact": "Detailed analysis of potential impact on medical practice and patient care",
+                "cross_specialty_insights": "Analysis of cross-specialty implications and connections",
+                "medical_keywords": ["List of 15-25 relevant medical keywords across all research papers in this batch"],
+                "papers_analyzed": {len(batch)},
+                "batch_number": {batch_num},
+                "specialties_covered": ["List of medical specialties represented in this batch"]
             }}
             
-            Provide actionable insights that synthesize information across all papers rather than discussing individual studies. 
-            Only provide insights based on the material you have been provided with.
+            Ensure the analysis is comprehensive and provides sufficient detail for later integration into a complete newsletter digest.
+            Return ONLY the JSON object, no additional text or explanations.
             """
-
-            response = self.llm.invoke(
-                input=[
-                    {"role": "system", "content": SYSTEM_ROLE},
-                    {"role": "user", "content": prompt}
-                ]
-            )
-
-            # Extract response text
-            if hasattr(response, 'content'):
-                response_text = response.content
-            elif isinstance(response, dict) and 'content' in response:
-                response_text = response['content']
-            else:
-                response_text = str(response)
-
-            # Try to extract and parse JSON from the response
+            
             try:
-                digest_json = self._extract_json_from_response(response_text)
+                # Get AI analysis for this batch
+                response = self.llm.invoke(prompt)
                 
-                # Add metadata
-                digest_json['date_generated'] = datetime.datetime.now().strftime("%Y-%m-%d")
-                digest_json['total_papers'] = len(all_papers_info)
-                digest_json['specialties'] = list(specialty_breakdown.keys())
-                digest_json['papers'] = all_papers_info
-                logger.info("Successfully generated digest summary")
-                return digest_json
-
-            except json.JSONDecodeError as e:
-                logger.error(f"Could not parse LLM response as JSON: {e}")
-                logger.error(f"Raw response: {response_text}")
+                # Check if response is empty or invalid
+                if not response.content or response.content.strip() == "":
+                    logger.error(f"Empty response from LLM for batch {batch_num}")
+                    raise ValueError("Empty response from LLM")
                 
-                # Return a fallback structure
-                return {
-                    "executive_summary": "Error occurred while generating AI summary. Raw analysis data available.",
-                    "key_discoveries": [f"Analysis of {len(all_papers_info)} papers across {len(specialty_breakdown)} specialties"],
-                    "emerging_trends": ["Unable to generate AI analysis due to parsing error"],
-                    "cross_specialty_insights": ["Manual review of papers recommended"],
-                    "clinical_implications": ["Individual paper review needed for clinical insights"],
-                    "research_gaps": ["AI analysis unavailable"],
-                    "future_directions": ["Manual analysis required"],
-                    "date_generated": datetime.datetime.now().strftime("%Y-%m-%d"),
-                    "total_papers": len(all_papers_info),
-                    "specialties": list(specialty_breakdown.keys()),
-                    "error": "JSON parsing failed"
+                # Parse the JSON response
+                batch_analysis = json.loads(response.content)
+                
+                # Store the batch analysis
+                self.batch_analyses[batch_num] = {
+                    "papers": batch,
+                    "analysis": batch_analysis,
+                    "timestamp": datetime.datetime.now().isoformat()
                 }
                 
+                logger.info(f"Successfully analyzed batch {batch_num}")
+                
+                # Rate limiting: wait until the beginning of the next minute between batches to avoid API limits
+                if batch_num < total_batches:
+                    logger.info("Waiting until the beginning of the next minute before next batch...")
+                    now = datetime.datetime.now()
+                    next_minute = now.replace(second=0, microsecond=0) + datetime.timedelta(minutes=1)
+                    wait_seconds = (next_minute - now).total_seconds()
+                    time.sleep(wait_seconds)
+                    
+            except Exception as e:
+                logger.error(f"Error analyzing batch {batch_num}: {str(e)}")
+                logger.error(f"Response content: {getattr(response, 'content', 'No content')}")
+                # Store error information for this batch
+                self.batch_analyses[batch_num] = {
+                    "papers": batch,
+                    "error": str(e),
+                    "timestamp": datetime.datetime.now().isoformat()
+                }
+        
+        logger.info(f"Completed batch analysis. Processed {len(self.batch_analyses)} batches.")
+
+    def _generate_executive_summary(self) -> str:
+        """
+        Generate an AI-generated executive summary from the batch analyses.
+        
+        Returns:
+            str: The executive summary
+        """
+        print("Generating executive summary...")
+
+        # Extract only the analysis results from each batch
+        batch_analysis_results = []
+        for batch_num, batch_data in self.batch_analyses.items():
+            if "analysis" in batch_data:
+                batch_analysis_results.append({
+                    "batch_number": batch_num,
+                    "analysis": batch_data["analysis"]
+                })
+            else:
+                logger.warning(f"Batch {batch_num} has no analysis results, skipping...")
+
+        # Create a list of all batch analyses
+        prompt = f"""
+        Generate an AI-generated executive summary from the following batch analysis results:
+        {batch_analysis_results}
+        
+        The summary should be 2-3 paragraphs long and focus on the key findings and implications of the research papers across all batches.
+        """
+        response = self.llm.invoke(prompt)
+        
+        # Check if response is empty or invalid
+        if not response.content or response.content.strip() == "":
+            logger.error("Empty response from LLM for executive summary")
+            return "No executive summary available due to processing errors."
+        
+        return response.content
+        
+    def _generate_key_discoveries(self) -> list:
+        """
+        Generate a list of key discoveries from the batch analyses.
+        
+        Returns:
+            list: The key discoveries
+        """
+        print("Generating key discoveries...")
+
+        # Extract only the analysis results from each batch
+        batch_analysis_results = []
+        for batch_num, batch_data in self.batch_analyses.items():
+            if "analysis" in batch_data:
+                batch_analysis_results.append({
+                    "batch_number": batch_num,
+                    "analysis": batch_data["analysis"]
+                })
+            else:
+                logger.warning(f"Batch {batch_num} has no analysis results, skipping...")
+
+        prompt = f"""
+        Generate a list of key discoveries from the following batch analysis results:
+        {batch_analysis_results}
+        
+        Return the response as a JSON array of exactly 10 key discoveries across all batches.
+        Format: ["discovery 1", "discovery 2", ..., "discovery 10"]
+        """
+        response = self.llm.invoke(prompt)
+        
+        try:
+            # Check if response is empty or invalid
+            if not response.content or response.content.strip() == "":
+                logger.error("Empty response from LLM for key discoveries")
+                return []
+            
+            # Parse the JSON response to get a list
+            key_discoveries = json.loads(response.content)
+            if isinstance(key_discoveries, list):
+                return key_discoveries
+            else:
+                logger.error("LLM response is not a list, returning empty list")
+                return []
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON response: {e}")
+            logger.error(f"Response content: {response.content}")
+            return []
         except Exception as e:
-            logger.error(f"Exception during digest summary: {e}")
-            # Return a fallback structure
-            return {
-                "executive_summary": "Error occurred during digest generation.",
-                "key_discoveries": [],
-                "emerging_trends": [],
-                "cross_specialty_insights": [],
-                "clinical_implications": [],
-                "research_gaps": [],
-                "future_directions": [],
-                "date_generated": datetime.datetime.now().strftime("%Y-%m-%d"),
-                "total_papers": len(all_papers_info) if 'all_papers_info' in locals() else 0,
-                "specialties": list(specialty_breakdown.keys()) if 'specialty_breakdown' in locals() else [],
-                "error": str(e)
-            }
+            logger.error(f"Unexpected error in key discoveries: {e}")
+            return []
+
+    def _generate_emerging_trends(self) -> str:
+        """
+        Generate 1-2 paragraphs on emerging trends from the batch analyses.
+        
+        Returns:
+            str: The emerging trends
+        """
+        print("Generating emerging trends...")
+        
+        # Extract only the analysis results from each batch
+        batch_analysis_results = []
+        for batch_num, batch_data in self.batch_analyses.items():
+            if "analysis" in batch_data:
+                batch_analysis_results.append({
+                    "batch_number": batch_num,
+                    "analysis": batch_data["analysis"]
+                })
+            else:
+                logger.warning(f"Batch {batch_num} has no analysis results, skipping...")
+
+        prompt = f"""
+        Generate 1-2 paragraphs on emerging trends from the following batch analysis results:
+        {batch_analysis_results}
+        
+        The trends should be 1-2 paragraphs long and focus on the emerging trends in the research papers across all batches.
+        """
+        response = self.llm.invoke(prompt)
+        
+        # Check if response is empty or invalid
+        if not response.content or response.content.strip() == "":
+            logger.error("Empty response from LLM for emerging trends")
+            return "No emerging trends available due to processing errors."
+        
+        return response.content
+        
+    def _generate_medical_impact(self) -> str:
+        """
+        Generate 1 paragraph on the potential impact of the research papers on medical practice and patient care.
+        
+        Returns:
+            str: The medical impact
+        """
+        print("Generating medical impact...")
+        
+        # Extract only the analysis results from each batch
+        batch_analysis_results = []
+        for batch_num, batch_data in self.batch_analyses.items():
+            if "analysis" in batch_data:
+                batch_analysis_results.append({
+                    "batch_number": batch_num,
+                    "analysis": batch_data["analysis"]
+                })
+            else:
+                logger.warning(f"Batch {batch_num} has no analysis results, skipping...")
+
+        prompt = f"""
+        Generate 1 paragraph on the potential impact of the research papers on medical practice and patient care from the following batch analysis results:
+        {batch_analysis_results}
+        
+        The impact should be 1 paragraph long and focus on the potential impact of the research papers on medical practice and patient care across all batches.
+        """
+        response = self.llm.invoke(prompt)
+        
+        # Check if response is empty or invalid
+        if not response.content or response.content.strip() == "":
+            logger.error("Empty response from LLM for medical impact")
+            return "No medical impact analysis available due to processing errors."
+        
+        return response.content
+    
+    def _generate_cross_specialty_insights(self) -> str:
+        """
+        Generate 1 paragraph on the cross-specialty implications of the research papers.
+        
+        Returns:
+            str: The cross-specialty implications
+        """
+        print("Generating cross-specialty implications...")
+
+        # Extract only the analysis results from each batch
+        batch_analysis_results = []
+        for batch_num, batch_data in self.batch_analyses.items():
+            if "analysis" in batch_data:
+                batch_analysis_results.append({
+                    "batch_number": batch_num,
+                    "analysis": batch_data["analysis"]
+                })
+            else:
+                logger.warning(f"Batch {batch_num} has no analysis results, skipping...")
+
+        prompt = f"""
+        Generate 1-2 paragraphs on the cross-specialty implications of the research papers from the following batch analysis results:
+        {batch_analysis_results}
+        
+        The implications should be 1-2 paragraphs long and focus on the cross-specialty implications of the research papers across all batches.
+        """
+        response = self.llm.invoke(prompt)
+        
+        # Check if response is empty or invalid
+        if not response.content or response.content.strip() == "":
+            logger.error("Empty response from LLM for cross-specialty insights")
+            return "No cross-specialty insights available due to processing errors."
+        
+        return response.content
+    
+    def _generate_clinical_implications(self) -> str:
+        """
+        Generate 1-2 paragraphs on the clinical implications of the research papers.
+        
+        Returns:
+            str: The clinical implications
+        """
+        print("Generating clinical implications...")
+
+        # Extract only the analysis results from each batch
+        batch_analysis_results = []
+        for batch_num, batch_data in self.batch_analyses.items():
+            if "analysis" in batch_data:
+                batch_analysis_results.append({
+                    "batch_number": batch_num,
+                    "analysis": batch_data["analysis"]
+                })
+            else:
+                logger.warning(f"Batch {batch_num} has no analysis results, skipping...")
+
+        prompt = f"""
+        Generate 1-2 paragraphs on the clinical implications of the research papers from the following batch analysis results:
+        {batch_analysis_results}
+        
+        The implications should be 1-2 paragraphs long and focus on the clinical implications of the research papers across all batches.
+        """
+        response = self.llm.invoke(prompt)
+        
+        # Check if response is empty or invalid
+        if not response.content or response.content.strip() == "":
+            logger.error("Empty response from LLM for clinical implications")
+            return "No clinical implications available due to processing errors."
+        
+        return response.content
+    
+    def _generate_research_gaps(self) -> str:
+        """
+        Generate 1 paragraph on the research gaps in the research papers.
+        
+        Returns:
+            str: The research gaps
+        """
+        print("Generating research gaps...")
+
+        # Extract only the analysis results from each batch
+        batch_analysis_results = []
+        for batch_num, batch_data in self.batch_analyses.items():
+            if "analysis" in batch_data:
+                batch_analysis_results.append({
+                    "batch_number": batch_num,
+                    "analysis": batch_data["analysis"]
+                })
+            else:
+                logger.warning(f"Batch {batch_num} has no analysis results, skipping...")
+
+        prompt = f"""
+        Generate 1 paragraph on the research gaps in the research papers from the following batch analysis results:
+        {batch_analysis_results}
+        
+        The gaps should be 1 paragraph long and focus on the research gaps in the research papers across all batches.
+        """
+        response = self.llm.invoke(prompt)
+        
+        # Check if response is empty or invalid
+        if not response.content or response.content.strip() == "":
+            logger.error("Empty response from LLM for research gaps")
+            return "No research gaps analysis available due to processing errors."
+        
+        return response.content
+    
+    def _generate_future_directions(self) -> str:
+        """
+        Generate 1 paragraph on the future directions of the research papers.
+        
+        Returns:
+            str: The future directions
+        """
+        print("Generating future directions...")
+
+        # Extract only the analysis results from each batch
+        batch_analysis_results = []
+        for batch_num, batch_data in self.batch_analyses.items():
+            if "analysis" in batch_data:
+                batch_analysis_results.append({
+                    "batch_number": batch_num,
+                    "analysis": batch_data["analysis"]
+                })
+            else:
+                logger.warning(f"Batch {batch_num} has no analysis results, skipping...")
+
+        prompt = f"""
+        Generate 1 paragraph on the future directions of the research papers from the following batch analysis results:
+        {batch_analysis_results}
+        
+        The directions should be 1 paragraph long and focus on the future directions of the research papers across all batches.
+        """
+        response = self.llm.invoke(prompt)
+        
+        # Check if response is empty or invalid
+        if not response.content or response.content.strip() == "":
+            logger.error("Empty response from LLM for future directions")
+            return "No future directions analysis available due to processing errors."
+        
+        return response.content
+    
+    def _digest_summary(self) -> dict:
+        """
+        Generate a comprehensive digest JSON summary from the batch analyses.
+        
+        Returns:
+            dict: The digest
+        """
+        print("Generating digest summary JSON...")
+
+        # Generate the digest
+        digest = {
+            "executive_summary": self._generate_executive_summary(),
+            "key_discoveries": self._generate_key_discoveries(),
+            "emerging_trends": self._generate_emerging_trends(),
+            "medical_impact": self._generate_medical_impact(),
+            "cross_specialty_insights": self._generate_cross_specialty_insights(),
+            "clinical_implications": self._generate_clinical_implications(),
+            "research_gaps": self._generate_research_gaps(),
+            "future_directions": self._generate_future_directions()
+        }
+        
+        # Add missing required fields
+        digest["date_generated"] = datetime.datetime.now().strftime("%Y-%m-%d")
+        
+        # Calculate total papers from specialty data
+        total_papers = sum(len(data["papers"]) for data in self.specialty_data.values())
+        digest["total_papers"] = total_papers
+        
+        # Add papers list for newsletter compatibility
+        digest["papers"] = []
+        for specialty, data in self.specialty_data.items():
+            for paper in data["papers"]:
+                paper_copy = paper.copy()
+                paper_copy["specialty"] = specialty
+                digest["papers"].append(paper_copy)
+
+        return digest

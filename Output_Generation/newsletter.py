@@ -50,10 +50,13 @@ class Newsletter:
         # Emerging Trends
         newsletter_lines.append("\nEMERGING TRENDS")
         newsletter_lines.append("-"*80)
-        emerging_trends = data.get('emerging_trends', [])
+        emerging_trends = data.get('emerging_trends', '')
         if emerging_trends:
-            for i, trend in enumerate(emerging_trends, 1):
-                newsletter_lines.append(f"{i}. {trend}")
+            if isinstance(emerging_trends, list):
+                for i, trend in enumerate(emerging_trends, 1):
+                    newsletter_lines.append(f"{i}. {trend}")
+            else:
+                newsletter_lines.append(emerging_trends)
         else:
             newsletter_lines.append("No emerging trends available.")
         newsletter_lines.append("\n" + "="*80)
@@ -72,10 +75,13 @@ class Newsletter:
         # Clinical Implications
         newsletter_lines.append("\nCLINICAL IMPLICATIONS")
         newsletter_lines.append("-"*80)
-        clinical_implications = data.get('clinical_implications', [])
+        clinical_implications = data.get('clinical_implications', '')
         if clinical_implications:
-            for i, implication in enumerate(clinical_implications, 1):
-                newsletter_lines.append(f"{i}. {implication}")
+            if isinstance(clinical_implications, list):
+                for i, implication in enumerate(clinical_implications, 1):
+                    newsletter_lines.append(f"{i}. {implication}")
+            else:
+                newsletter_lines.append(clinical_implications)
         else:
             newsletter_lines.append("No clinical implications available.")
         newsletter_lines.append("\n" + "="*80)
@@ -83,10 +89,13 @@ class Newsletter:
         # Research Gaps
         newsletter_lines.append("\nRESEARCH GAPS")
         newsletter_lines.append("-"*80)
-        research_gaps = data.get('research_gaps', [])
+        research_gaps = data.get('research_gaps', '')
         if research_gaps:
-            for i, gap in enumerate(research_gaps, 1):
-                newsletter_lines.append(f"{i}. {gap}")
+            if isinstance(research_gaps, list):
+                for i, gap in enumerate(research_gaps, 1):
+                    newsletter_lines.append(f"{i}. {gap}")
+            else:
+                newsletter_lines.append(research_gaps)
         else:
             newsletter_lines.append("No research gaps available.")
         newsletter_lines.append("\n" + "="*80)
@@ -94,10 +103,13 @@ class Newsletter:
         # Future Directions
         newsletter_lines.append("\nFUTURE DIRECTIONS")
         newsletter_lines.append("-"*80)
-        future_directions = data.get('future_directions', [])
+        future_directions = data.get('future_directions', '')
         if future_directions:
-            for i, direction in enumerate(future_directions, 1):
-                newsletter_lines.append(f"{i}. {direction}")
+            if isinstance(future_directions, list):
+                for i, direction in enumerate(future_directions, 1):
+                    newsletter_lines.append(f"{i}. {direction}")
+            else:
+                newsletter_lines.append(future_directions)
         else:
             newsletter_lines.append("No future directions available.")
         newsletter_lines.append("\n" + "="*80)
