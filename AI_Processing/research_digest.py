@@ -117,12 +117,12 @@ class ResearchDigest:
 
     def _batch_analyze_papers(self, specialty_data: Dict[str, Dict]) -> None:
         """
-        Analyze the fetched papers using AI in batches of 20 papers at the time.
+        Analyze the fetched papers using AI in batches of 10 papers at the time.
         
         Args:
             specialty_data (Dict[str, Dict]): Dictionary containing specialty data
         """
-        logger.info("Analyzing papers with AI in batches of 20 papers at the time...")
+        logger.info("Analyzing papers with AI in batches of 10 papers at the time...")
         
         # Collect all papers from all specialties
         all_papers = []
@@ -132,27 +132,26 @@ class ResearchDigest:
                 all_papers.append(paper)
         
         total_papers = len(all_papers)
-        total_batches = (total_papers + 19) // 20  # Calculate total number of batches
+        total_batches = (total_papers + 9) // 10  # Calculate total number of batches (reduced from 20 to 10)
         
         logger.info(f"Total papers to analyze: {total_papers} in {total_batches} batches")
         
-        for i in range(0, total_papers, 20):
-            batch_num = i // 20 + 1
-            batch = all_papers[i:i+20]
+        for i in range(0, total_papers, 10):
+            batch_num = i // 10 + 1
+            batch = all_papers[i:i+10]
             logger.info(f"Analyzing batch {batch_num} of {total_batches} ({len(batch)} papers)...")
             
-            # Create detailed batch information for the prompt
+            # Create detailed batch information for the prompt (simplified to reduce token count)
             batch_info = []
             for j, paper in enumerate(batch, 1):
+                # Truncate abstract to reduce token count
+                abstract = paper['abstract'][:500] + "..." if len(paper['abstract']) > 500 else paper['abstract']
                 batch_info.append(f"""
                 Paper {j}:
                 Title: {paper['title']}
-                Authors: {', '.join(paper['authors'])}
-                Abstract: {paper['abstract']}
-                Published: {paper['date']}
+                Abstract: {abstract}
                 Specialty: {paper['specialty']}
-                Keywords: {', '.join(paper['keywords'])}
-                Focus: {paper['focus']}
+                Keywords: {', '.join(paper['keywords'][:3])}  # Limit to 3 keywords
                 """)
             
             batch_text = "\n".join(batch_info)
@@ -164,12 +163,12 @@ class ResearchDigest:
             
             Provide a comprehensive analysis in the following JSON format. IMPORTANT: Return ONLY valid JSON, no additional text:
             {{
-                "batch_summary": "3-4 paragraph summary focusing on key findings and implications for current medical practices",
-                "significant_findings": ["List of top 10 most significant findings across all papers in this batch"],
-                "major_trends": ["List of 3-4 major trends or patterns identified across multiple papers in this batch"],
-                "medical_impact": "Detailed analysis of potential impact on medical practice and patient care",
-                "cross_specialty_insights": "Analysis of cross-specialty implications and connections",
-                "medical_keywords": ["List of 15-25 relevant medical keywords across all research papers in this batch"],
+                "batch_summary": "2-3 paragraph summary focusing on key findings and implications for current medical practices",
+                "significant_findings": ["List of top 5 most significant findings across all papers in this batch"],
+                "major_trends": ["List of 2-3 major trends or patterns identified across multiple papers in this batch"],
+                "medical_impact": "Brief analysis of potential impact on medical practice and patient care",
+                "cross_specialty_insights": "Brief analysis of cross-specialty implications and connections",
+                "medical_keywords": ["List of 10-15 relevant medical keywords across all research papers in this batch"],
                 "papers_analyzed": {len(batch)},
                 "batch_number": {batch_num},
                 "specialties_covered": ["List of medical specialties represented in this batch"]
@@ -179,6 +178,7 @@ class ResearchDigest:
             Return ONLY the JSON object, no additional text or explanations.
             """
             
+            response = None
             try:
                 # Get AI analysis for this batch
                 response = self.llm.invoke(prompt)
@@ -210,7 +210,8 @@ class ResearchDigest:
                     
             except Exception as e:
                 logger.error(f"Error analyzing batch {batch_num}: {str(e)}")
-                logger.error(f"Response content: {getattr(response, 'content', 'No content')}")
+                if response:
+                    logger.error(f"Response content: {getattr(response, 'content', 'No content')}")
                 # Store error information for this batch
                 self.batch_analyses[batch_num] = {
                     "papers": batch,
