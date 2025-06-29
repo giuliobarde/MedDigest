@@ -66,8 +66,11 @@ class Newsletter:
         newsletter_lines.append("-"*80)
         cross_specialty_insights = data.get('cross_specialty_insights', [])
         if cross_specialty_insights:
-            for i, insight in enumerate(cross_specialty_insights, 1):
-                newsletter_lines.append(f"{i}. {insight}")
+            if isinstance(cross_specialty_insights, list):
+                for i, insight in enumerate(cross_specialty_insights, 1):
+                    newsletter_lines.append(f"{i}. {insight}")
+            else:
+                newsletter_lines.append(emerging_trends)
         else:
             newsletter_lines.append("No cross-specialty insights available.")
         newsletter_lines.append("\n" + "="*80)
