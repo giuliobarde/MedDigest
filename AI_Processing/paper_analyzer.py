@@ -5,6 +5,7 @@ import logging
 import re
 import json
 from typing import Optional
+from utils.token_monitor import TokenMonitor
 
 # Configure logging for this module
 logger = logging.getLogger(__name__)
@@ -42,14 +43,16 @@ class PaperAnalyzer:
     Be precise and professional in your analysis.
     """
     
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, token_monitor: Optional[TokenMonitor] = None):
         """
         Initialize the paper analyzer with Groq LLM.
         
         Args:
             api_key (str): API key for Groq LLM service
+            token_monitor (Optional[TokenMonitor]): Token monitor instance for rate limiting
         """
         self.llm = ChatGroq(api_key=api_key, model="llama3-8b-8192")
+        self.token_monitor = token_monitor or TokenMonitor(max_tokens_per_minute=16000)
     
     def analyze_paper(self, paper: Paper) -> Optional[PaperAnalysis]:
         """
@@ -68,12 +71,29 @@ class PaperAnalyzer:
         prompt = self._create_analysis_prompt(paper)
         
         try:
+            # Estimate input tokens (rough approximation: 1 token ≈ 4 characters)
+            input_tokens = len(prompt) // 4
+            
             response = self.llm.invoke(
                 input=[
                     {"role": "system", "content": self.SYSTEM_ROLE},
                     {"role": "user", "content": prompt}
                 ]
             )
+            
+            # Estimate output tokens
+            output_tokens = len(response.content) // 4
+            
+            # Record token usage with enhanced tracking
+            if self.token_monitor:
+                self.token_monitor.record_usage(
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    call_type="paper_analysis",
+                    prompt_length=len(prompt),
+                    response_length=len(response.content)
+                )
+            
             return self._parse_analysis_response(response.content)
         except Exception as e:
             logger.error(f"Error analyzing paper {paper.paper_id}: {str(e)}")
