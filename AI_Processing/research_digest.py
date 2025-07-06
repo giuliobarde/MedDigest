@@ -1,11 +1,12 @@
 from Data_Classes.classes import Paper, PaperAnalysis
 from Data_Retrieval.data_retrieval import ArxivClient
 from AI_Processing.paper_analyzer import PaperAnalyzer
+from utils.token_monitor import TokenMonitor
 from typing import List, Dict
 import logging
-import time
 import datetime
 import json
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -30,14 +31,15 @@ class ResearchDigest:
             api_key (str): API key for the AI service
         """
         self.arxiv_client = ArxivClient()
-        self.analyzer = PaperAnalyzer(api_key)
-        self.llm = self.analyzer.llm  # Get LLM instance from analyzer
+        self.token_monitor = TokenMonitor(max_tokens_per_minute=16000)
+        self.analyzer = PaperAnalyzer(api_key, token_monitor=self.token_monitor)
+        self.llm = self.analyzer.llm
         self.specialty_data: Dict[str, Dict] = {}
         self.batch_analyses: Dict[int, Dict] = {}
 
     def generate_digest(self, search_query: str = "all:medical") -> Dict:
         """
-        Generate a research digest for medical papers in batches of 20 papers at the time.
+        Generate a research digest for medical papers in batches of 10 papers at the time.
         
         Args:
             search_query (str): The search query to use for finding papers
@@ -49,18 +51,14 @@ class ResearchDigest:
             The digest includes paper analysis, specialty categorization,
             and AI-generated summaries of key findings.
         """
-        logger.info("Fetching papers from arXiv...")
+        logger.info("\nFetching papers from arXiv...")
         papers = self.arxiv_client.fetch_papers(search_query)
         logger.info(f"Found {len(papers)} papers")
         
         self._analyze_papers(papers)
         self._batch_analyze_papers(self.specialty_data)
         
-        # Wait until the beginning of the next minute to avoid rate limiting
-        now = datetime.datetime.now()
-        next_minute = now.replace(second=0, microsecond=0) + datetime.timedelta(minutes=1)
-        wait_seconds = (next_minute - now).total_seconds()
-        time.sleep(wait_seconds)
+        # Token monitor handles rate limiting automatically, no need for manual sleep
 
         # Generate and store the digest
         self.digest_json = self._digest_summary()
@@ -134,7 +132,7 @@ class ResearchDigest:
         total_papers = len(all_papers)
         total_batches = (total_papers + 9) // 10  # Calculate total number of batches (reduced from 20 to 10)
         
-        logger.info(f"Total papers to analyze: {total_papers} in {total_batches} batches")
+        logger.info(f"Total papers to analyze: {total_papers} in {total_batches} {'batch' if total_batches == 1 else 'batches'}")
         
         for i in range(0, total_papers, 10):
             batch_num = i // 10 + 1
@@ -180,16 +178,33 @@ class ResearchDigest:
             
             response = None
             try:
+                # Estimate input tokens (rough approximation: 1 token ≈ 4 characters)
+                input_tokens = len(prompt) // 4
+                
                 # Get AI analysis for this batch
                 response = self.llm.invoke(prompt)
+                
+                # Estimate output tokens
+                output_tokens = len(response.content) // 4
+                
+                # Record token usage with enhanced tracking
+                self.token_monitor.record_usage(
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    call_type="batch_analysis",
+                    prompt_length=len(prompt),
+                    response_length=len(response.content)
+                )
                 
                 # Check if response is empty or invalid
                 if not response.content or response.content.strip() == "":
                     logger.error(f"Empty response from LLM for batch {batch_num}")
                     raise ValueError("Empty response from LLM")
                 
-                # Parse the JSON response
-                batch_analysis = json.loads(response.content)
+                # Extract JSON from the response
+                batch_analysis = self._extract_json_from_response(response.content, "object")
+                if batch_analysis is None:
+                    raise ValueError("Failed to parse JSON response")
                 
                 # Store the batch analysis
                 self.batch_analyses[batch_num] = {
@@ -200,14 +215,6 @@ class ResearchDigest:
                 
                 logger.info(f"Successfully analyzed batch {batch_num}")
                 
-                # Rate limiting: wait until the beginning of the next minute between batches to avoid API limits
-                if batch_num < total_batches:
-                    logger.info("Waiting until the beginning of the next minute before next batch...")
-                    now = datetime.datetime.now()
-                    next_minute = now.replace(second=0, microsecond=0) + datetime.timedelta(minutes=1)
-                    wait_seconds = (next_minute - now).total_seconds()
-                    time.sleep(wait_seconds)
-                    
             except Exception as e:
                 logger.error(f"Error analyzing batch {batch_num}: {str(e)}")
                 if response:
@@ -221,6 +228,79 @@ class ResearchDigest:
         
         logger.info(f"Completed batch analysis. Processed {len(self.batch_analyses)} batches.")
 
+    def _extract_json_from_response(self, response_content: str, expected_type: str = "object") -> any:
+        """
+        Extract JSON from LLM response, handling cases where the response includes explanatory text.
+        
+        Args:
+            response_content (str): The raw response from the LLM
+            expected_type (str): Expected JSON type - "object" for dict, "array" for list
+            
+        Returns:
+            any: Parsed JSON object or list, or None if parsing fails
+        """
+        try:
+            # Clean the response - remove any markdown formatting
+            cleaned_response = response_content.strip()
+            if cleaned_response.startswith('```json'):
+                cleaned_response = cleaned_response[7:]
+            if cleaned_response.endswith('```'):
+                cleaned_response = cleaned_response[:-3]
+            cleaned_response = cleaned_response.strip()
+            
+            # Look for JSON pattern based on expected type
+            if expected_type == "array":
+                json_pattern = r'\[.*\]'
+            else:  # object
+                json_pattern = r'\{.*\}'
+                
+            json_match = re.search(json_pattern, cleaned_response, re.DOTALL)
+            
+            if json_match:
+                json_content = json_match.group(0)
+                return json.loads(json_content)
+            else:
+                # Try to parse the entire response as JSON
+                return json.loads(cleaned_response)
+                
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decode error: {str(e)}")
+            logger.error(f"Response content: {response_content[:300]}...")
+            return None
+        except Exception as e:
+            logger.error(f"Error extracting JSON: {str(e)}")
+            return None
+
+    def _make_llm_call_with_monitoring(self, prompt: str, call_type: str = "summary_generation") -> str:
+        """
+        Make an LLM call with token monitoring and rate limiting.
+        
+        Args:
+            prompt (str): The prompt to send to the LLM
+            call_type (str): Type of call for tracking purposes
+            
+        Returns:
+            str: The LLM response content
+        """
+        # Estimate input tokens (rough approximation: 1 token ≈ 4 characters)
+        input_tokens = len(prompt) // 4
+        
+        response = self.llm.invoke(prompt)
+        
+        # Estimate output tokens
+        output_tokens = len(response.content) // 4
+        
+        # Record token usage with enhanced tracking
+        self.token_monitor.record_usage(
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            call_type=call_type,
+            prompt_length=len(prompt),
+            response_length=len(response.content)
+        )
+        
+        return response.content
+
     def _generate_executive_summary(self) -> str:
         """
         Generate an AI-generated executive summary from the batch analyses.
@@ -228,7 +308,7 @@ class ResearchDigest:
         Returns:
             str: The executive summary
         """
-        print("Generating executive summary...")
+        print("\nGenerating executive summary...")
 
         # Extract only the analysis results from each batch
         batch_analysis_results = []
@@ -248,14 +328,19 @@ class ResearchDigest:
         
         The summary should be 2-3 paragraphs long and focus on the key findings and implications of the research papers across all batches.
         """
-        response = self.llm.invoke(prompt)
         
-        # Check if response is empty or invalid
-        if not response.content or response.content.strip() == "":
-            logger.error("Empty response from LLM for executive summary")
+        try:
+            response_content = self._make_llm_call_with_monitoring(prompt, "executive_summary")
+            
+            # Check if response is empty or invalid
+            if not response_content or response_content.strip() == "":
+                logger.error("Empty response from LLM for executive summary")
+                return "No executive summary available due to processing errors."
+            
+            return response_content
+        except Exception as e:
+            logger.error(f"Error generating executive summary: {str(e)}")
             return "No executive summary available due to processing errors."
-        
-        return response.content
         
     def _generate_key_discoveries(self) -> list:
         """
@@ -264,7 +349,7 @@ class ResearchDigest:
         Returns:
             list: The key discoveries
         """
-        print("Generating key discoveries...")
+        print("\nGenerating key discoveries...")
 
         # Extract only the analysis results from each batch
         batch_analysis_results = []
@@ -283,26 +368,29 @@ class ResearchDigest:
         
         Return the response as a JSON array of exactly 10 key discoveries across all batches.
         Format: ["discovery 1", "discovery 2", ..., "discovery 10"]
+        IMPORTANT: Return ONLY the JSON array, no additional text or explanations.
         """
-        response = self.llm.invoke(prompt)
         
         try:
+            response_content = self._make_llm_call_with_monitoring(prompt, "key_discoveries")
+            
             # Check if response is empty or invalid
-            if not response.content or response.content.strip() == "":
+            if not response_content or response_content.strip() == "":
                 logger.error("Empty response from LLM for key discoveries")
                 return []
             
-            # Parse the JSON response to get a list
-            key_discoveries = json.loads(response.content)
+            # Extract JSON array from the response
+            key_discoveries = self._extract_json_from_response(response_content, "array")
+            if key_discoveries is None:
+                logger.error("Failed to parse JSON response for key discoveries")
+                return []
+            
             if isinstance(key_discoveries, list):
                 return key_discoveries
             else:
                 logger.error("LLM response is not a list, returning empty list")
                 return []
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON response: {e}")
-            logger.error(f"Response content: {response.content}")
-            return []
+                    
         except Exception as e:
             logger.error(f"Unexpected error in key discoveries: {e}")
             return []
@@ -314,7 +402,7 @@ class ResearchDigest:
         Returns:
             str: The emerging trends
         """
-        print("Generating emerging trends...")
+        print("\nGenerating emerging trends...")
         
         # Extract only the analysis results from each batch
         batch_analysis_results = []
@@ -333,14 +421,19 @@ class ResearchDigest:
         
         The trends should be 1-2 paragraphs long and focus on the emerging trends in the research papers across all batches.
         """
-        response = self.llm.invoke(prompt)
         
-        # Check if response is empty or invalid
-        if not response.content or response.content.strip() == "":
-            logger.error("Empty response from LLM for emerging trends")
+        try:
+            response_content = self._make_llm_call_with_monitoring(prompt, "emerging_trends")
+            
+            # Check if response is empty or invalid
+            if not response_content or response_content.strip() == "":
+                logger.error("Empty response from LLM for emerging trends")
+                return "No emerging trends available due to processing errors."
+            
+            return response_content
+        except Exception as e:
+            logger.error(f"Error generating emerging trends: {str(e)}")
             return "No emerging trends available due to processing errors."
-        
-        return response.content
         
     def _generate_medical_impact(self) -> str:
         """
@@ -349,7 +442,7 @@ class ResearchDigest:
         Returns:
             str: The medical impact
         """
-        print("Generating medical impact...")
+        print("\nGenerating medical impact...")
         
         # Extract only the analysis results from each batch
         batch_analysis_results = []
@@ -368,14 +461,19 @@ class ResearchDigest:
         
         The impact should be 1 paragraph long and focus on the potential impact of the research papers on medical practice and patient care across all batches.
         """
-        response = self.llm.invoke(prompt)
         
-        # Check if response is empty or invalid
-        if not response.content or response.content.strip() == "":
-            logger.error("Empty response from LLM for medical impact")
+        try:
+            response_content = self._make_llm_call_with_monitoring(prompt, "medical_impact")
+            
+            # Check if response is empty or invalid
+            if not response_content or response_content.strip() == "":
+                logger.error("Empty response from LLM for medical impact")
+                return "No medical impact analysis available due to processing errors."
+            
+            return response_content
+        except Exception as e:
+            logger.error(f"Error generating medical impact: {str(e)}")
             return "No medical impact analysis available due to processing errors."
-        
-        return response.content
     
     def _generate_cross_specialty_insights(self) -> str:
         """
@@ -384,7 +482,7 @@ class ResearchDigest:
         Returns:
             str: The cross-specialty implications
         """
-        print("Generating cross-specialty implications...")
+        print("\nGenerating cross-specialty implications...")
 
         # Extract only the analysis results from each batch
         batch_analysis_results = []
@@ -403,14 +501,19 @@ class ResearchDigest:
         
         The implications should be 1-2 paragraphs long and focus on the cross-specialty implications of the research papers across all batches.
         """
-        response = self.llm.invoke(prompt)
         
-        # Check if response is empty or invalid
-        if not response.content or response.content.strip() == "":
-            logger.error("Empty response from LLM for cross-specialty insights")
+        try:
+            response_content = self._make_llm_call_with_monitoring(prompt, "cross_specialty_insights")
+            
+            # Check if response is empty or invalid
+            if not response_content or response_content.strip() == "":
+                logger.error("Empty response from LLM for cross-specialty insights")
+                return "No cross-specialty insights available due to processing errors."
+            
+            return response_content
+        except Exception as e:
+            logger.error(f"Error generating cross-specialty insights: {str(e)}")
             return "No cross-specialty insights available due to processing errors."
-        
-        return response.content
     
     def _generate_clinical_implications(self) -> str:
         """
@@ -419,7 +522,7 @@ class ResearchDigest:
         Returns:
             str: The clinical implications
         """
-        print("Generating clinical implications...")
+        print("\nGenerating clinical implications...")
 
         # Extract only the analysis results from each batch
         batch_analysis_results = []
@@ -438,14 +541,19 @@ class ResearchDigest:
         
         The implications should be 1-2 paragraphs long and focus on the clinical implications of the research papers across all batches.
         """
-        response = self.llm.invoke(prompt)
         
-        # Check if response is empty or invalid
-        if not response.content or response.content.strip() == "":
-            logger.error("Empty response from LLM for clinical implications")
+        try:
+            response_content = self._make_llm_call_with_monitoring(prompt, "clinical_implications")
+            
+            # Check if response is empty or invalid
+            if not response_content or response_content.strip() == "":
+                logger.error("Empty response from LLM for clinical implications")
+                return "No clinical implications available due to processing errors."
+            
+            return response_content
+        except Exception as e:
+            logger.error(f"Error generating clinical implications: {str(e)}")
             return "No clinical implications available due to processing errors."
-        
-        return response.content
     
     def _generate_research_gaps(self) -> str:
         """
@@ -454,7 +562,7 @@ class ResearchDigest:
         Returns:
             str: The research gaps
         """
-        print("Generating research gaps...")
+        print("\nGenerating research gaps...")
 
         # Extract only the analysis results from each batch
         batch_analysis_results = []
@@ -473,14 +581,19 @@ class ResearchDigest:
         
         The gaps should be 1 paragraph long and focus on the research gaps in the research papers across all batches.
         """
-        response = self.llm.invoke(prompt)
         
-        # Check if response is empty or invalid
-        if not response.content or response.content.strip() == "":
-            logger.error("Empty response from LLM for research gaps")
+        try:
+            response_content = self._make_llm_call_with_monitoring(prompt, "research_gaps")
+            
+            # Check if response is empty or invalid
+            if not response_content or response_content.strip() == "":
+                logger.error("Empty response from LLM for research gaps")
+                return "No research gaps analysis available due to processing errors."
+            
+            return response_content
+        except Exception as e:
+            logger.error(f"Error generating research gaps: {str(e)}")
             return "No research gaps analysis available due to processing errors."
-        
-        return response.content
     
     def _generate_future_directions(self) -> str:
         """
@@ -489,7 +602,7 @@ class ResearchDigest:
         Returns:
             str: The future directions
         """
-        print("Generating future directions...")
+        print("\nGenerating future directions...")
 
         # Extract only the analysis results from each batch
         batch_analysis_results = []
@@ -508,14 +621,19 @@ class ResearchDigest:
         
         The directions should be 1 paragraph long and focus on the future directions of the research papers across all batches.
         """
-        response = self.llm.invoke(prompt)
         
-        # Check if response is empty or invalid
-        if not response.content or response.content.strip() == "":
-            logger.error("Empty response from LLM for future directions")
+        try:
+            response_content = self._make_llm_call_with_monitoring(prompt, "future_directions")
+            
+            # Check if response is empty or invalid
+            if not response_content or response_content.strip() == "":
+                logger.error("Empty response from LLM for future directions")
+                return "No future directions analysis available due to processing errors."
+            
+            return response_content
+        except Exception as e:
+            logger.error(f"Error generating future directions: {str(e)}")
             return "No future directions analysis available due to processing errors."
-        
-        return response.content
     
     def _digest_summary(self) -> dict:
         """
@@ -524,7 +642,7 @@ class ResearchDigest:
         Returns:
             dict: The digest
         """
-        print("Generating digest summary JSON...")
+        print("\nGenerating digest summary JSON...")
 
         # Generate the digest
         digest = {
