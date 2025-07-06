@@ -4,9 +4,9 @@ from AI_Processing.paper_analyzer import PaperAnalyzer
 from utils.token_monitor import TokenMonitor
 from typing import List, Dict
 import logging
-import time
 import datetime
 import json
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -33,13 +33,13 @@ class ResearchDigest:
         self.arxiv_client = ArxivClient()
         self.token_monitor = TokenMonitor(max_tokens_per_minute=16000)
         self.analyzer = PaperAnalyzer(api_key, token_monitor=self.token_monitor)
-        self.llm = self.analyzer.llm  # Get LLM instance from analyzer
+        self.llm = self.analyzer.llm
         self.specialty_data: Dict[str, Dict] = {}
         self.batch_analyses: Dict[int, Dict] = {}
 
     def generate_digest(self, search_query: str = "all:medical") -> Dict:
         """
-        Generate a research digest for medical papers in batches of 20 papers at the time.
+        Generate a research digest for medical papers in batches of 10 papers at the time.
         
         Args:
             search_query (str): The search query to use for finding papers
@@ -51,7 +51,7 @@ class ResearchDigest:
             The digest includes paper analysis, specialty categorization,
             and AI-generated summaries of key findings.
         """
-        logger.info("Fetching papers from arXiv...")
+        logger.info("\nFetching papers from arXiv...")
         papers = self.arxiv_client.fetch_papers(search_query)
         logger.info(f"Found {len(papers)} papers")
         
@@ -132,7 +132,7 @@ class ResearchDigest:
         total_papers = len(all_papers)
         total_batches = (total_papers + 9) // 10  # Calculate total number of batches (reduced from 20 to 10)
         
-        logger.info(f"Total papers to analyze: {total_papers} in {total_batches} batches")
+        logger.info(f"Total papers to analyze: {total_papers} in {total_batches} {'batch' if total_batches == 1 else 'batches'}")
         
         for i in range(0, total_papers, 10):
             batch_num = i // 10 + 1
@@ -201,8 +201,10 @@ class ResearchDigest:
                     logger.error(f"Empty response from LLM for batch {batch_num}")
                     raise ValueError("Empty response from LLM")
                 
-                # Parse the JSON response
-                batch_analysis = json.loads(response.content)
+                # Extract JSON from the response
+                batch_analysis = self._extract_json_from_response(response.content, "object")
+                if batch_analysis is None:
+                    raise ValueError("Failed to parse JSON response")
                 
                 # Store the batch analysis
                 self.batch_analyses[batch_num] = {
@@ -225,6 +227,49 @@ class ResearchDigest:
                 }
         
         logger.info(f"Completed batch analysis. Processed {len(self.batch_analyses)} batches.")
+
+    def _extract_json_from_response(self, response_content: str, expected_type: str = "object") -> any:
+        """
+        Extract JSON from LLM response, handling cases where the response includes explanatory text.
+        
+        Args:
+            response_content (str): The raw response from the LLM
+            expected_type (str): Expected JSON type - "object" for dict, "array" for list
+            
+        Returns:
+            any: Parsed JSON object or list, or None if parsing fails
+        """
+        try:
+            # Clean the response - remove any markdown formatting
+            cleaned_response = response_content.strip()
+            if cleaned_response.startswith('```json'):
+                cleaned_response = cleaned_response[7:]
+            if cleaned_response.endswith('```'):
+                cleaned_response = cleaned_response[:-3]
+            cleaned_response = cleaned_response.strip()
+            
+            # Look for JSON pattern based on expected type
+            if expected_type == "array":
+                json_pattern = r'\[.*\]'
+            else:  # object
+                json_pattern = r'\{.*\}'
+                
+            json_match = re.search(json_pattern, cleaned_response, re.DOTALL)
+            
+            if json_match:
+                json_content = json_match.group(0)
+                return json.loads(json_content)
+            else:
+                # Try to parse the entire response as JSON
+                return json.loads(cleaned_response)
+                
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decode error: {str(e)}")
+            logger.error(f"Response content: {response_content[:300]}...")
+            return None
+        except Exception as e:
+            logger.error(f"Error extracting JSON: {str(e)}")
+            return None
 
     def _make_llm_call_with_monitoring(self, prompt: str, call_type: str = "summary_generation") -> str:
         """
@@ -263,7 +308,7 @@ class ResearchDigest:
         Returns:
             str: The executive summary
         """
-        print("Generating executive summary...")
+        print("\nGenerating executive summary...")
 
         # Extract only the analysis results from each batch
         batch_analysis_results = []
@@ -304,7 +349,7 @@ class ResearchDigest:
         Returns:
             list: The key discoveries
         """
-        print("Generating key discoveries...")
+        print("\nGenerating key discoveries...")
 
         # Extract only the analysis results from each batch
         batch_analysis_results = []
@@ -323,6 +368,7 @@ class ResearchDigest:
         
         Return the response as a JSON array of exactly 10 key discoveries across all batches.
         Format: ["discovery 1", "discovery 2", ..., "discovery 10"]
+        IMPORTANT: Return ONLY the JSON array, no additional text or explanations.
         """
         
         try:
@@ -333,17 +379,18 @@ class ResearchDigest:
                 logger.error("Empty response from LLM for key discoveries")
                 return []
             
-            # Parse the JSON response to get a list
-            key_discoveries = json.loads(response_content)
+            # Extract JSON array from the response
+            key_discoveries = self._extract_json_from_response(response_content, "array")
+            if key_discoveries is None:
+                logger.error("Failed to parse JSON response for key discoveries")
+                return []
+            
             if isinstance(key_discoveries, list):
                 return key_discoveries
             else:
                 logger.error("LLM response is not a list, returning empty list")
                 return []
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON response: {e}")
-            logger.error(f"Response content: {response_content}")
-            return []
+                    
         except Exception as e:
             logger.error(f"Unexpected error in key discoveries: {e}")
             return []
@@ -355,7 +402,7 @@ class ResearchDigest:
         Returns:
             str: The emerging trends
         """
-        print("Generating emerging trends...")
+        print("\nGenerating emerging trends...")
         
         # Extract only the analysis results from each batch
         batch_analysis_results = []
@@ -395,7 +442,7 @@ class ResearchDigest:
         Returns:
             str: The medical impact
         """
-        print("Generating medical impact...")
+        print("\nGenerating medical impact...")
         
         # Extract only the analysis results from each batch
         batch_analysis_results = []
@@ -435,7 +482,7 @@ class ResearchDigest:
         Returns:
             str: The cross-specialty implications
         """
-        print("Generating cross-specialty implications...")
+        print("\nGenerating cross-specialty implications...")
 
         # Extract only the analysis results from each batch
         batch_analysis_results = []
@@ -475,7 +522,7 @@ class ResearchDigest:
         Returns:
             str: The clinical implications
         """
-        print("Generating clinical implications...")
+        print("\nGenerating clinical implications...")
 
         # Extract only the analysis results from each batch
         batch_analysis_results = []
@@ -515,7 +562,7 @@ class ResearchDigest:
         Returns:
             str: The research gaps
         """
-        print("Generating research gaps...")
+        print("\nGenerating research gaps...")
 
         # Extract only the analysis results from each batch
         batch_analysis_results = []
@@ -555,7 +602,7 @@ class ResearchDigest:
         Returns:
             str: The future directions
         """
-        print("Generating future directions...")
+        print("\nGenerating future directions...")
 
         # Extract only the analysis results from each batch
         batch_analysis_results = []
@@ -595,7 +642,7 @@ class ResearchDigest:
         Returns:
             dict: The digest
         """
-        print("Generating digest summary JSON...")
+        print("\nGenerating digest summary JSON...")
 
         # Generate the digest
         digest = {

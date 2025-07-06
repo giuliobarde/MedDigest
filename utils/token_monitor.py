@@ -18,13 +18,10 @@ Features:
 
 import time
 import logging
-import json
 import threading
-from typing import Dict, List, Optional, Union
-from dataclasses import dataclass, asdict
-from collections import defaultdict, deque
-from datetime import datetime, timedelta
-import os
+from typing import Dict, List, Union
+from dataclasses import dataclass
+from collections import defaultdict
 import statistics
 
 logger = logging.getLogger(__name__)
@@ -57,8 +54,6 @@ class DetailedUsageStats:
     average_cost_per_call: float
     tokens_per_minute_rate: float
     calls_per_minute_rate: float
-    token_distribution: Dict[str, float]  # min, max, median, std_dev
-    cost_distribution: Dict[str, float]   # min, max, median, std_dev
     call_type_breakdown: Dict[str, Dict[str, Union[int, float]]]
     prompt_length_stats: Dict[str, float]
     response_length_stats: Dict[str, float]
@@ -171,7 +166,6 @@ class TokenMonitor:
                 total_calls=0, total_tokens=0, total_input_tokens=0, total_output_tokens=0,
                 total_cost=0.0, average_tokens_per_call=0.0, average_input_tokens=0.0,
                 average_output_tokens=0.0, average_cost_per_call=0.0, tokens_per_minute_rate=0.0,
-                calls_per_minute_rate=0.0, token_distribution={}, cost_distribution={},
                 call_type_breakdown={}, prompt_length_stats={}, response_length_stats={},
                 processing_duration=0.0
             )
@@ -179,17 +173,7 @@ class TokenMonitor:
         # Basic stats
         total_tokens = self.total_input_tokens + self.total_output_tokens
         processing_duration = time.time() - self.start_time
-        
-        # Token distribution
-        all_tokens = [usage.total_tokens for usage in self.usage_history]
-        token_distribution = {
-            "min": min(all_tokens),
-            "max": max(all_tokens),
-            "median": statistics.median(all_tokens),
-            "mean": statistics.mean(all_tokens),
-            "std_dev": statistics.stdev(all_tokens) if len(all_tokens) > 1 else 0
-        }
-        
+                
         # Cost distribution
         all_costs = [usage.cost_usd for usage in self.usage_history]
         cost_distribution = {
@@ -240,8 +224,6 @@ class TokenMonitor:
             average_cost_per_call=self.total_cost / self.total_calls if self.total_calls > 0 else 0,
             tokens_per_minute_rate=(total_tokens / processing_duration * 60) if processing_duration > 0 else 0,
             calls_per_minute_rate=(self.total_calls / processing_duration * 60) if processing_duration > 0 else 0,
-            token_distribution=token_distribution,
-            cost_distribution=cost_distribution,
             call_type_breakdown=call_type_breakdown,
             prompt_length_stats=prompt_length_stats,
             response_length_stats=response_length_stats,
@@ -257,7 +239,7 @@ class TokenMonitor:
         logger.info("=" * 80)
         
         # Basic overview
-        logger.info("📊 BASIC OVERVIEW")
+        logger.info("BASIC OVERVIEW")
         logger.info(f"   Total calls: {stats.total_calls}")
         logger.info(f"   Total tokens: {stats.total_tokens:,}")
         logger.info(f"     - Input: {stats.total_input_tokens:,}")
@@ -266,62 +248,33 @@ class TokenMonitor:
         logger.info(f"   Processing duration: {stats.processing_duration:.1f} seconds")
         
         # Averages
-        logger.info("\n📈 AVERAGES")
+        logger.info("\nAVERAGES")
         logger.info(f"   Average tokens per call: {stats.average_tokens_per_call:.1f}")
         logger.info(f"   Average input tokens: {stats.average_input_tokens:.1f}")
         logger.info(f"   Average output tokens: {stats.average_output_tokens:.1f}")
         logger.info(f"   Average cost per call: ${stats.average_cost_per_call:.4f}")
         
         # Rates
-        logger.info("\n⚡ RATES")
+        logger.info("\nRATES")
         logger.info(f"   Tokens per minute: {stats.tokens_per_minute_rate:.1f}")
         logger.info(f"   Calls per minute: {stats.calls_per_minute_rate:.1f}")
         
         # Prompt and response analysis
         if stats.prompt_length_stats['mean'] > 0:
-            logger.info("\n📝 PROMPT ANALYSIS")
+            logger.info("\nPROMPT ANALYSIS")
             logger.info(f"   Average prompt length: {stats.prompt_length_stats['mean']:.0f} characters")
             logger.info(f"   Min prompt length: {stats.prompt_length_stats['min']}")
             logger.info(f"   Max prompt length: {stats.prompt_length_stats['max']}")
             logger.info(f"   Prompt length std dev: {stats.prompt_length_stats['std_dev']:.1f}")
         
         if stats.response_length_stats['mean'] > 0:
-            logger.info("\n📄 RESPONSE ANALYSIS")
+            logger.info("\nRESPONSE ANALYSIS")
             logger.info(f"   Average response length: {stats.response_length_stats['mean']:.0f} characters")
             logger.info(f"   Min response length: {stats.response_length_stats['min']}")
             logger.info(f"   Max response length: {stats.response_length_stats['max']}")
             logger.info(f"   Response length std dev: {stats.response_length_stats['std_dev']:.1f}")
         
         logger.info("=" * 80)
-
-    def export_stats_to_json(self, filename: str = "token_usage_stats.json"):
-        """Export detailed statistics to a JSON file."""
-        stats = self.get_detailed_stats()
-        
-        # Convert dataclass to dict and handle datetime objects
-        export_data = {
-            "summary": asdict(stats),
-            "usage_history": [
-                {
-                    "timestamp": usage.timestamp,
-                    "datetime": datetime.fromtimestamp(usage.timestamp).isoformat(),
-                    "input_tokens": usage.input_tokens,
-                    "output_tokens": usage.output_tokens,
-                    "total_tokens": usage.total_tokens,
-                    "cost_usd": usage.cost_usd,
-                    "call_type": usage.call_type,
-                    "prompt_length": usage.prompt_length,
-                    "response_length": usage.response_length
-                }
-                for usage in self.usage_history
-            ]
-        }
-        
-        with open(filename, 'w') as f:
-            json.dump(export_data, f, indent=2)
-        
-        logger.info(f"Token usage statistics exported to {filename}")
-
 
 # Convenience function for quick usage tracking
 def track_llm_call(monitor: TokenMonitor, input_tokens: int, output_tokens: int, 
