@@ -54,6 +54,12 @@ def main():
     digest_json = digest.generate_digest()
     digest.digest_json = digest_json  # Store the digest JSON for Newsletter
 
+    # Print token usage summary
+    digest.token_monitor.print_usage_summary()
+    
+    # Export detailed statistics to JSON file
+    digest.token_monitor.export_stats_to_json("token_usage_stats.json")
+
     # Generate the newsletter
     from Output_Generation.newsletter import Newsletter
     newsletter = Newsletter(digest)
