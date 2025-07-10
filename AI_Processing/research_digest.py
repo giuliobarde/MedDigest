@@ -353,6 +353,8 @@ class ResearchDigest:
         - Include specific examples where possible
         - Avoid technical jargon that would confuse non-specialists
 
+        CRITICAL INSTRUCTION: Write the executive summary directly without any introductory phrases like "Here is..." or "This summary..." or "Based on the research data...". Start immediately with the content as if it's the first paragraph of the newsletter.
+
         Write a clear, engaging executive summary that would make a busy healthcare professional want to read the full digest.
         """
         
@@ -412,11 +414,12 @@ class ResearchDigest:
         - Use clear, professional medical terminology
 
         EXAMPLE FORMAT:
-        ["Discovery 1: [Specific finding with clinical context and impact]",
-         "Discovery 2: [Specific finding with clinical context and impact]",
+        ["Specific finding with clinical context and impact",
+         "Specific finding with clinical context and impact",
          ...]
 
         IMPORTANT: Return ONLY the JSON array, no additional text or explanations.
+        CRITICAL INSTRUCTION: Write the key discoveries directly without any introductory phrases like "Here is..." or "This summary..." or "Based on the research data...". Start immediately with the content as if it's the first paragraph of the newsletter.
         """
         
         try:
@@ -491,6 +494,8 @@ class ResearchDigest:
         - Use clear, professional medical terminology
         - Focus on actionable insights for healthcare professionals
 
+        CRITICAL INSTRUCTION: Write the emerging trends directly without any introductory phrases like "Here is..." or "This summary..." or "Based on the research data...". Start immediately with the content as if it's the first paragraph of the newsletter.
+
         Write an analysis that helps readers understand the direction of medical research and its implications for the future of healthcare.
         """
         
@@ -555,6 +560,8 @@ class ResearchDigest:
         - Provide concrete examples where possible
         - Consider the perspective of different healthcare stakeholders
 
+        CRITICAL INSTRUCTION: Write the medical impact directly without any introductory phrases like "Here is..." or "This summary..." or "Based on the research data...". Start immediately with the content as if it's the first paragraph of the newsletter.
+
         Write an analysis that helps healthcare professionals understand how these research findings could transform their practice and improve patient care.
         """
         
@@ -618,6 +625,8 @@ class ResearchDigest:
         - Provide specific examples of interdisciplinary applications
         - Use clear, professional medical terminology
         - Focus on practical implications for integrated care
+
+        CRITICAL INSTRUCTION: Write the cross-specialty insights directly without any introductory phrases like "Here is..." or "This summary..." or "Based on the research data...". Start immediately with the content as if it's the first paragraph of the newsletter.
 
         Write an analysis that demonstrates how breaking down specialty silos could lead to better patient care and more effective medical practice.
         """
@@ -684,6 +693,8 @@ class ResearchDigest:
         - Provide concrete clinical examples
         - Address both immediate and longer-term clinical applications
 
+        CRITICAL INSTRUCTION: Write the clinical implications directly without any introductory phrases like "Here is..." or "This summary..." or "Based on the research data..." or "Direct Clinical Implications:". Start immediately with the content as if it's the first paragraph of the newsletter and do not include any other text.
+
         Write an analysis that helps clinicians understand how these research findings should influence their daily practice and patient care decisions.
         """
         
@@ -748,6 +759,8 @@ class ResearchDigest:
         - Use clear, professional medical terminology
         - Provide specific examples of what research is needed
         - Consider the perspective of researchers, funders, and clinicians
+
+        CRITICAL INSTRUCTION: Write the research gaps directly without any introductory phrases like "Here is..." or "This summary..." or "Based on the research data...". Start immediately with the content as if it's the first paragraph of the newsletter.
 
         Write an analysis that helps researchers and funding agencies understand where to focus their efforts for maximum impact on medical knowledge and patient care.
         """
@@ -814,6 +827,8 @@ class ResearchDigest:
         - Use clear, professional medical terminology
         - Provide specific examples of future developments
         - Consider both opportunities and challenges
+
+        CRITICAL INSTRUCTION: Write the future directions directly without any introductory phrases like "Here is..." or "This summary..." or "Based on the research data...". Start immediately with the content as if it's the first paragraph of the newsletter.
 
         Write an analysis that helps healthcare leaders and researchers understand where medical science is heading and how to prepare for future developments.
         """
