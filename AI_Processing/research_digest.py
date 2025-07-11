@@ -7,6 +7,7 @@ import logging
 import datetime
 import json
 import re
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,38 @@ class ResearchDigest:
         self.llm = self.analyzer.llm
         self.specialty_data: Dict[str, Dict] = {}
         self.batch_analyses: Dict[int, Dict] = {}
+        self.rate_limit_threshold = 14000  # Sleep when approaching 14k tokens (leaving 2k buffer)
+        self.current_minute_tokens = 0
+        self.minute_start_time = time.time()
+
+    def _check_rate_limit(self, estimated_tokens: int) -> None:
+        """
+        Check if we're approaching the rate limit and sleep if necessary.
+        
+        Args:
+            estimated_tokens (int): Estimated tokens for the next operation
+        """
+        current_time = time.time()
+        
+        # Reset counter if a new minute has started
+        if current_time - self.minute_start_time >= 60:
+            self.current_minute_tokens = 0
+            self.minute_start_time = current_time
+        
+        # Check if adding these tokens would exceed our threshold
+        if self.current_minute_tokens + estimated_tokens > self.rate_limit_threshold:
+            # Calculate how long to sleep until the next minute
+            time_elapsed = current_time - self.minute_start_time
+            sleep_time = 60 - time_elapsed
+            
+            if sleep_time > 0:
+                logger.info(f"Approaching rate limit ({self.current_minute_tokens} tokens used). Sleeping for {sleep_time:.1f} seconds...")
+                time.sleep(sleep_time)
+                self.current_minute_tokens = 0
+                self.minute_start_time = time.time()
+        
+        # Update token count for this minute
+        self.current_minute_tokens += estimated_tokens
 
     def generate_digest(self, search_query: str = "all:medical") -> Dict:
         """
@@ -76,11 +109,17 @@ class ResearchDigest:
         for i, paper in enumerate(papers, 1):
             logger.info(f"Analyzing paper {i}/{len(papers)}: {paper.title[:80]}...")
             
-            analysis = self.analyzer.analyze_paper(paper)
-            if not analysis:
+            # Estimate tokens for this paper analysis (rough approximation)
+            estimated_tokens = len(paper.title + paper.abstract + paper.conclusion) // 4 + 500  # Add buffer for prompt and response
+            self._check_rate_limit(estimated_tokens)
+            
+            result = self.analyzer.analyze_paper(paper)
+            if not result or result[0] is None:
                 continue
                 
-            self._update_specialty_data(paper, analysis)
+            analysis, usage = result
+            if analysis is not None:
+                self._update_specialty_data(paper, analysis)
     
     def _update_specialty_data(self, paper: Paper, analysis: PaperAnalysis) -> None:
         """
@@ -153,6 +192,10 @@ class ResearchDigest:
                 """)
             
             batch_text = "\n".join(batch_info)
+            
+            # Estimate tokens for batch analysis
+            estimated_tokens = len(batch_text) // 4 + 2000  # Add buffer for prompt and response
+            self._check_rate_limit(estimated_tokens)
             
             prompt = f"""
             You are a medical research analyst tasked with analyzing a batch of {len(batch)} medical research papers. Your goal is to provide a comprehensive analysis that will be used in a medical research digest newsletter.
@@ -290,6 +333,10 @@ class ResearchDigest:
         Returns:
             str: The LLM response content
         """
+        # Estimate input tokens and check rate limit
+        estimated_tokens = len(prompt) // 4 + 1000  # Add buffer for response
+        self._check_rate_limit(estimated_tokens)
+        
         # Estimate input tokens (rough approximation: 1 token ≈ 4 characters)
         input_tokens = len(prompt) // 4
         
