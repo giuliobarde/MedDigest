@@ -147,6 +147,7 @@ class ResearchDigest:
             "abstract": paper.abstract,
             "keywords": analysis.keywords,
             "focus": analysis.focus,
+            "interest_score": analysis.interest_score,
             "date": paper.published.strftime("%Y-%m-%d")
         })
         self.specialty_data[analysis.specialty]["all_keywords"].extend(analysis.keywords)
@@ -278,6 +279,52 @@ class ResearchDigest:
                 }
         
         logger.info(f"Completed batch analysis. Processed {len(self.batch_analyses)} batches.")
+
+    def get_high_interest_papers_summary(self) -> dict:
+        """
+        Generate a summary of high-interest papers (score >= 7.0) across all specialties.
+        
+        Returns:
+            dict: Summary of high-interest papers with statistics and top papers
+        """
+        all_papers = []
+        for specialty, data in self.specialty_data.items():
+            for paper in data['papers']:
+                paper['specialty'] = specialty
+                all_papers.append(paper)
+        
+        # Filter high-interest papers (score >= 7.0)
+        high_interest_papers = [p for p in all_papers if p.get('interest_score', 0) >= 7.0]
+        high_interest_papers.sort(key=lambda x: x['interest_score'], reverse=True)
+        
+        # Calculate statistics
+        total_papers = len(all_papers)
+        high_interest_count = len(high_interest_papers)
+        avg_interest_score = sum(p.get('interest_score', 0) for p in all_papers) / total_papers if total_papers > 0 else 0
+        
+        # Group by specialty
+        specialty_breakdown = {}
+        for paper in high_interest_papers:
+            specialty = paper['specialty']
+            if specialty not in specialty_breakdown:
+                specialty_breakdown[specialty] = []
+            specialty_breakdown[specialty].append(paper)
+        
+        return {
+            "total_papers": total_papers,
+            "high_interest_count": high_interest_count,
+            "high_interest_percentage": (high_interest_count / total_papers * 100) if total_papers > 0 else 0,
+            "average_interest_score": round(avg_interest_score, 2),
+            "top_papers": high_interest_papers[:10],  # Top 10 highest scoring papers
+            "specialty_breakdown": specialty_breakdown,
+            "interest_score_distribution": {
+                "9-10": len([p for p in all_papers if 9.0 <= p.get('interest_score', 0) <= 10.0]),
+                "7-8.9": len([p for p in all_papers if 7.0 <= p.get('interest_score', 0) < 9.0]),
+                "5-6.9": len([p for p in all_papers if 5.0 <= p.get('interest_score', 0) < 7.0]),
+                "3-4.9": len([p for p in all_papers if 3.0 <= p.get('interest_score', 0) < 5.0]),
+                "0-2.9": len([p for p in all_papers if 0.0 <= p.get('interest_score', 0) < 3.0])
+            }
+        }
 
     def _extract_json_from_response(self, response_content: str, expected_type: str = "object") -> any:
         """
@@ -893,6 +940,28 @@ class ResearchDigest:
             logger.error(f"Error generating future directions: {str(e)}")
             return "No future directions analysis available due to processing errors."
     
+    def _print_highest_rated_papers_per_specialty(self) -> None:
+        """
+        Print the title of the highest rated paper per specialty to the console.
+        """
+        print("\n" + "="*80)
+        print("HIGHEST RATED PAPERS PER SPECIALTY")
+        print("="*80)
+        
+        for specialty, data in self.specialty_data.items():
+            if not data["papers"]:
+                continue
+                
+            # Find the paper with the highest interest score in this specialty
+            highest_rated_paper = max(data["papers"], key=lambda p: p.get('interest_score', 0))
+            
+            print(f"\n{specialty.upper()}:")
+            print(f"  Title: {highest_rated_paper['title']}")
+            print(f"  Interest Score: {highest_rated_paper.get('interest_score', 'N/A')}")
+            print(f"  Authors: {', '.join(highest_rated_paper['authors'][:3])}{'...' if len(highest_rated_paper['authors']) > 3 else ''}")
+        
+        print("\n" + "="*80)
+
     def _digest_summary(self) -> dict:
         """
         Generate a comprehensive digest JSON summary from the batch analyses.
@@ -901,6 +970,9 @@ class ResearchDigest:
             dict: The digest
         """
         print("\nGenerating digest summary JSON...")
+
+        # Print highest rated papers per specialty
+        self._print_highest_rated_papers_per_specialty()
 
         # Generate the digest
         digest = {
@@ -911,7 +983,8 @@ class ResearchDigest:
             "cross_specialty_insights": self._generate_cross_specialty_insights(),
             "clinical_implications": self._generate_clinical_implications(),
             "research_gaps": self._generate_research_gaps(),
-            "future_directions": self._generate_future_directions()
+            "future_directions": self._generate_future_directions(),
+            "high_interest_papers": self.get_high_interest_papers_summary()
         }
         
         # Add missing required fields
