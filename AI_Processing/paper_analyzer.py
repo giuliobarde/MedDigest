@@ -23,44 +23,233 @@ class PaperAnalyzer:
     - Deterministic interest score based on content analysis
     """
     
-    # Set of valid medical specialties for categorization
-    VALID_SPECIALTIES = {
-        'Cardiology', 'Oncology', 'Radiology', 'Neurology', 
-        'Surgery', 'Psychiatry', 'Endocrinology', 'General Medicine',
-        'Dermatology', 'Gastroenterology', 'Pulmonology', 'Orthopedics',
-        'Ophthalmology', 'Urology', 'Gynecology', 'Pediatrics',
-        'Emergency Medicine', 'Anesthesiology', 'Pathology', 'Immunology',
-        'Infectious Disease', 'Nephrology', 'Hematology', 'Rheumatology',
-        'Medical Imaging', 'Biomedical Engineering', 'Medical AI', 'Clinical Research'
-    }
-    
-    # Keywords that indicate high-impact research
-    HIGH_IMPACT_KEYWORDS = {
-        'breakthrough', 'novel', 'innovative', 'first', 'groundbreaking', 'revolutionary',
-        'significant', 'substantial', 'major', 'landmark', 'paradigm', 'transformative',
-        'clinical trial', 'randomized controlled trial', 'rct', 'meta-analysis', 
-        'systematic review', 'multi-center', 'multicenter', 'phase iii', 'phase 3',
-        'fda approved', 'fda approval', 'regulatory approval', 'clinical guidelines',
-        'treatment outcome', 'patient outcome', 'mortality reduction', 'survival',
-        'efficacy', 'effectiveness', 'safety profile', 'adverse events'
-    }
-    
-    # Keywords that indicate moderate impact
-    MODERATE_IMPACT_KEYWORDS = {
-        'improvement', 'enhancement', 'optimization', 'validation', 'evaluation',
-        'assessment', 'comparison', 'analysis', 'investigation', 'study',
-        'pilot study', 'feasibility', 'preliminary', 'observational',
-        'retrospective', 'prospective', 'cohort', 'case-control',
-        'diagnostic', 'predictive', 'prognostic', 'biomarker', 'screening'
-    }
-    
-    # Keywords that indicate lower impact
-    LOW_IMPACT_KEYWORDS = {
-        'case report', 'case series', 'single case', 'letter', 'editorial',
-        'commentary', 'review', 'survey', 'opinion', 'hypothesis',
-        'theoretical', 'conceptual', 'in vitro', 'cell culture', 'animal model',
-        'preliminary findings', 'limited sample', 'small cohort'
-    }
+    # High Impact Methodologies/Techniques (Evidence Level 1-2)
+    HIGH_IMPACT_METHODOLOGIES = [
+        # Clinical Trial Methodologies
+        "Randomized Controlled Trial (RCT)",
+        "Double-blind Randomized Controlled Trial",
+        "Triple-blind Randomized Controlled Trial",
+        "Cluster Randomized Controlled Trial",
+        "Crossover Randomized Controlled Trial",
+        "Adaptive Randomized Trial",
+        "Pragmatic Clinical Trial",
+        "Phase III Clinical Trial",
+        "Phase IV Post-marketing Surveillance",
+        "Multi-center Clinical Trial",
+        "International Multi-center Trial",
+        
+        # Meta-analysis and Systematic Reviews
+        "Systematic Review with Meta-analysis",
+        "Network Meta-analysis",
+        "Individual Patient Data Meta-analysis",
+        "Cochrane Systematic Review",
+        "Living Systematic Review",
+        "Umbrella Review",
+        "Scoping Review with Meta-analysis",
+        
+        # Advanced Statistical Methods
+        "Bayesian Randomized Controlled Trial",
+        "Mendelian Randomization",
+        "Propensity Score Matching",
+        "Instrumental Variable Analysis",
+        "Regression Discontinuity Design",
+        "Difference-in-Differences Analysis",
+        "Interrupted Time Series Analysis",
+        "Causal Inference Methods",
+        
+        # Genomics and Precision Medicine
+        "Genome-Wide Association Study (GWAS)",
+        "Whole Genome Sequencing",
+        "Whole Exome Sequencing",
+        "Pharmacogenomics Study",
+        "Polygenic Risk Score Analysis",
+        "Multi-omics Integration",
+        "Single-cell RNA Sequencing",
+        "Spatial Transcriptomics",
+        
+        # Advanced AI/ML in Medicine
+        "Deep Learning for Medical Imaging",
+        "Federated Learning in Healthcare",
+        "Explainable AI in Clinical Decision Making",
+        "Large Language Models for Medical Tasks",
+        "Computer Vision for Pathology",
+        "Reinforcement Learning for Treatment Optimization",
+        "Transfer Learning in Medical AI",
+        "Multi-modal AI for Healthcare",
+        
+        # Regulatory and Implementation
+        "FDA Breakthrough Therapy Designation",
+        "Real-World Evidence (RWE) Study",
+        "Comparative Effectiveness Research",
+        "Health Technology Assessment",
+        "Implementation Science Study",
+        "Pragmatic-Explanatory Continuum Indicator Summary (PRECIS-2)",
+    ]
+
+    # Medium Impact Methodologies/Techniques (Evidence Level 3-4)
+    MEDIUM_IMPACT_METHODOLOGIES = [
+        # Observational Studies
+        "Prospective Cohort Study",
+        "Retrospective Cohort Study",
+        "Case-Control Study",
+        "Nested Case-Control Study",
+        "Cross-sectional Study",
+        "Longitudinal Study",
+        "Population-based Study",
+        "Registry-based Study",
+        "Electronic Health Record (EHR) Study",
+        
+        # Phase I/II Trials
+        "Phase I Clinical Trial",
+        "Phase II Clinical Trial",
+        "Dose-escalation Study",
+        "Pilot Clinical Trial",
+        "Feasibility Study",
+        "Proof-of-Concept Study",
+        "First-in-Human Study",
+        
+        # Diagnostic Studies
+        "Diagnostic Accuracy Study",
+        "Biomarker Validation Study",
+        "Screening Study",
+        "Predictive Model Development",
+        "Prognostic Model Validation",
+        "Risk Stratification Study",
+        
+        # Experimental Methods
+        "In Vivo Animal Study",
+        "Preclinical Study",
+        "Translational Research",
+        "Mechanistic Study",
+        "Pharmacokinetic/Pharmacodynamic Study",
+        "Toxicology Study",
+        
+        # Survey and Qualitative Methods
+        "Cross-sectional Survey",
+        "Longitudinal Survey",
+        "Mixed Methods Study",
+        "Qualitative Study",
+        "Ethnographic Study",
+        "Phenomenological Study",
+        "Grounded Theory Study",
+        
+        # Intermediate AI/ML Methods
+        "Machine Learning for Risk Prediction",
+        "Natural Language Processing for Clinical Notes",
+        "Computer-Aided Diagnosis",
+        "Radiomics Analysis",
+        "Predictive Modeling",
+        "Time Series Analysis for Healthcare",
+        "Survival Analysis with ML",
+        
+        # Specialized Techniques
+        "Proteomics Study",
+        "Metabolomics Study",
+        "Microbiome Analysis",
+        "Epigenetic Study",
+        "Immunophenotyping",
+        "Flow Cytometry Analysis",
+        "Mass Spectrometry Analysis",
+        "Pharmacovigilance Study",
+        
+        # Health Services Research
+        "Health Economic Evaluation",
+        "Quality of Life Assessment",
+        "Patient-Reported Outcome Measures (PROMs)",
+        "Cost-effectiveness Analysis",
+        "Budget Impact Analysis",
+        "Markov Modeling",
+    ]
+
+    # Low Impact Methodologies/Techniques (Evidence Level 5 and below)
+    LOW_IMPACT_METHODOLOGIES = [
+        # Case Studies and Reports
+        "Case Report",
+        "Case Series",
+        "Single Case Study",
+        "Multiple Case Report",
+        "Case-based Review",
+        
+        # Basic Laboratory Methods
+        "In Vitro Study",
+        "Cell Culture Study",
+        "Tissue Culture Study",
+        "Biochemical Assay",
+        "Enzyme Activity Assay",
+        "Protein Expression Analysis",
+        "Western Blot Analysis",
+        "PCR Analysis",
+        "qPCR Analysis",
+        "ELISA",
+        "Immunohistochemistry",
+        "Histological Analysis",
+        
+        # Basic Animal Models
+        "Mouse Model Study",
+        "Rat Model Study",
+        "Cell Line Study",
+        "Xenograft Model",
+        "Organoid Study",
+        
+        # Descriptive Studies
+        "Descriptive Study",
+        "Ecological Study",
+        "Correlation Study",
+        "Prevalence Study",
+        "Incidence Study",
+        "Mortality Study",
+        
+        # Reviews and Commentaries
+        "Literature Review",
+        "Narrative Review",
+        "Editorial",
+        "Commentary",
+        "Opinion Piece",
+        "Perspective Article",
+        "Letter to Editor",
+        "Short Communication",
+        
+        # Basic Statistical Methods
+        "Descriptive Statistics",
+        "Correlation Analysis",
+        "Simple Linear Regression",
+        "Chi-square Test",
+        "T-test Analysis",
+        "ANOVA",
+        "Basic Survival Analysis",
+        
+        # Theoretical and Conceptual
+        "Theoretical Model",
+        "Conceptual Framework",
+        "Hypothesis Generation",
+        "Mathematical Model",
+        "Simulation Study",
+        "Modeling Study",
+        
+        # Basic Surveys
+        "Cross-sectional Survey (Small Sample)",
+        "Convenience Sample Survey",
+        "Online Survey",
+        "Questionnaire Study",
+        "Interview Study",
+        "Focus Group Study",
+        
+        # Basic Imaging
+        "Imaging Study (Descriptive)",
+        "Radiological Case Series",
+        "Ultrasound Study",
+        "CT Scan Analysis",
+        "MRI Analysis",
+        "X-ray Analysis",
+        
+        # Preliminary Work
+        "Pilot Study (Small N)",
+        "Preliminary Results",
+        "Feasibility Assessment",
+        "Method Development",
+        "Protocol Development",
+        "Validation Study (Small Scale)",
+    ]
     
     # System prompt that defines the AI's role and analysis requirements
     SYSTEM_ROLE = """
@@ -109,7 +298,8 @@ class PaperAnalyzer:
                 input=[
                     {"role": "system", "content": self.SYSTEM_ROLE},
                     {"role": "user", "content": prompt}
-                ]
+                ],
+                output_type="json"
             )
             output_tokens = self.token_monitor.count_tokens(str(response.content))
             usage = self.token_monitor.record_usage(
@@ -135,195 +325,32 @@ class PaperAnalyzer:
         except Exception as e:
             logger.error(f"Error analyzing paper {paper.paper_id}: {str(e)}")
             return None, None
-    
-    def _calculate_interest_score(self, paper: Paper, analysis: PaperAnalysis) -> tuple[float, dict]:
+        
+    # Usage example for API-based methodology detection
+    def detect_methodologies_api_call(paper_text: str, methodology_list: list) -> list:
         """
-        Calculate a deterministic interest score based on paper content and analysis.
+        Placeholder function for API call to detect methodologies in paper text.
         
         Args:
-            paper (Paper): The original paper
-            analysis (PaperAnalysis): The AI analysis results
+            paper_text (str): Full text of the paper
+            methodology_list (list): List of methodologies to check for
             
         Returns:
-            tuple[float, dict]: Interest score between 0.0 and 10.0, and detailed breakdown
+            list: Detected methodologies from the input list
         """
-        # Combine all text for analysis
-        full_text = f"{paper.title} {paper.abstract} {paper.conclusion} {' '.join(analysis.keywords)}".lower()
+    
+    def _calculate_paper_score(detected_methodologies: dict) -> float:
+        """
+        Calculate score based on detected methodologies.
+    
+        Args:
+            detected_methodologies (dict): Dictionary with keys 'high', 'medium', 'low'
+                                        and values as lists of detected methodologies
+                                        
+        Returns:
+            float: Calculated methodology score
+        """
         
-        # Initialize detailed scoring breakdown
-        score_breakdown = {
-            'base_score': 0.0,
-            'study_type': 0.0,
-            'clinical_impact_keywords': 0.0,
-            'sample_size': 0.0,
-            'clinical_timeline': 0.0,
-            'methodological_innovation': 0.0,
-            'innovation_indicators': 0.0,
-            'hash_variance': 0.0,
-            'total_score': 0.0,
-            'details': {}
-        }
-        
-        score = 6.0
-        score_breakdown['base_score'] = 6.0
-        score_breakdown['details']['base_score_reason'] = "arXiv papers get higher base score (6.0) for cutting-edge research"
-        
-        # Factor 1: Study type and methodology (±2.0 points)
-        study_type_score = 0.0
-        study_type_reason = "No specific study type identified"
-        
-        if any(keyword in full_text for keyword in ['randomized controlled trial', 'rct', 'clinical trial']):
-            study_type_score = 2.0
-            study_type_reason = "Randomized controlled trial (+2.0)"
-        elif any(keyword in full_text for keyword in ['meta-analysis', 'systematic review']):
-            study_type_score = 1.8
-            study_type_reason = "Meta-analysis/systematic review (+1.8)"
-        elif any(keyword in full_text for keyword in ['multi-center', 'multicenter', 'phase iii', 'phase 3']):
-            study_type_score = 1.5
-            study_type_reason = "Multi-center/Phase III study (+1.5)"
-        elif any(keyword in full_text for keyword in ['prospective', 'cohort']):
-            study_type_score = 1.0
-            study_type_reason = "Prospective/cohort study (+1.0)"
-        elif any(keyword in full_text for keyword in ['retrospective', 'case-control']):
-            study_type_score = 0.5
-            study_type_reason = "Retrospective/case-control study (+0.5)"
-        elif any(keyword in full_text for keyword in ['case report', 'case series', 'single case']):
-            study_type_score = -1.5
-            study_type_reason = "Case report/series (-1.5)"
-        elif any(keyword in full_text for keyword in ['in vitro', 'cell culture', 'animal model']):
-            study_type_score = -1.0
-            study_type_reason = "In vitro/animal model (-1.0)"
-        
-        score += study_type_score
-        score_breakdown['study_type'] = study_type_score
-        score_breakdown['details']['study_type_reason'] = study_type_reason
-        
-        # Factor 2: Clinical impact keywords (±1.5 points)
-        high_impact_count = sum(1 for keyword in self.HIGH_IMPACT_KEYWORDS if keyword in full_text)
-        moderate_impact_count = sum(1 for keyword in self.MODERATE_IMPACT_KEYWORDS if keyword in full_text)
-        low_impact_count = sum(1 for keyword in self.LOW_IMPACT_KEYWORDS if keyword in full_text)
-        
-        high_impact_score = min(high_impact_count * 0.3, 1.5)
-        moderate_impact_score = min(moderate_impact_count * 0.1, 0.5)
-        low_impact_penalty = min(low_impact_count * 0.2, 1.0)
-        
-        clinical_impact_score = high_impact_score + moderate_impact_score - low_impact_penalty
-        score += clinical_impact_score
-        score_breakdown['clinical_impact_keywords'] = clinical_impact_score
-        score_breakdown['details']['clinical_impact_breakdown'] = {
-            'high_impact_keywords': high_impact_count,
-            'high_impact_score': high_impact_score,
-            'moderate_impact_keywords': moderate_impact_count,
-            'moderate_impact_score': moderate_impact_score,
-            'low_impact_keywords': low_impact_count,
-            'low_impact_penalty': low_impact_penalty
-        }
-        
-        # Factor 3: Sample size indicators (±1.0 point)
-        sample_size_score = 0.0
-        sample_size_reason = "No specific sample size indicators"
-        
-        if any(keyword in full_text for keyword in ['large cohort', 'large sample', 'n >']) or \
-           any(f'n = {i}' in full_text for i in range(1000, 10000)):
-            sample_size_score = 1.0
-            sample_size_reason = "Large sample size (+1.0)"
-        elif any(keyword in full_text for keyword in ['small sample', 'limited sample', 'pilot']) or \
-             any(f'n = {i}' in full_text for i in range(1, 50)):
-            sample_size_score = -0.5
-            sample_size_reason = "Small sample size (-0.5)"
-        
-        score += sample_size_score
-        score_breakdown['sample_size'] = sample_size_score
-        score_breakdown['details']['sample_size_reason'] = sample_size_reason
-        
-        # IMPROVEMENT 2: Clinical Relevance Weighting with Timeline
-        # Factor 4: Clinical Impact Timeline (±3.0 points)
-        clinical_timeline_score = 0.0
-        clinical_timeline_reason = "No immediate clinical impact indicators"
-        
-        if any(keyword in full_text for keyword in ['fda approved', 'fda approval', 'regulatory approval', 'clinical guidelines', 'treatment guidelines']):
-            clinical_timeline_score = 3.0
-            clinical_timeline_reason = "Immediate clinical impact (0-6 months): FDA approval/guidelines (+3.0)"
-        elif any(keyword in full_text for keyword in ['phase iii', 'phase 3', 'phase ii', 'phase 2', 'clinical trial', 'randomized controlled trial']):
-            clinical_timeline_score = 2.0
-            clinical_timeline_reason = "Short-term clinical potential (6-24 months): Phase II/III trials (+2.0)"
-        elif any(keyword in full_text for keyword in ['patient outcome', 'treatment outcome', 'mortality reduction', 'survival benefit', 'efficacy', 'effectiveness']):
-            clinical_timeline_score = 1.0
-            clinical_timeline_reason = "Medium-term potential (2-5 years): Patient outcomes (+1.0)"
-        elif any(keyword in full_text for keyword in ['biomarker', 'diagnostic', 'predictive', 'prognostic', 'screening']):
-            clinical_timeline_score = 0.5
-            clinical_timeline_reason = "Long-term potential (5+ years): Biomarkers/diagnostics (+0.5)"
-        
-        score += clinical_timeline_score
-        score_breakdown['clinical_timeline'] = clinical_timeline_score
-        score_breakdown['details']['clinical_timeline_reason'] = clinical_timeline_reason
-        
-        # IMPROVEMENT 3: Methodological Innovation
-        # Factor 5: AI/ML Innovation (±1.5 points)
-        ai_innovation_score = 0.0
-        ai_innovation_details = []
-        
-        # New AI/ML techniques
-        if any(keyword in full_text for keyword in ['novel algorithm', 'new method', 'proposed approach', 'introduced method']):
-            ai_innovation_score += 1.0
-            ai_innovation_details.append("New AI/ML technique (+1.0)")
-        elif any(keyword in full_text for keyword in ['artificial intelligence', 'machine learning', 'deep learning', 'neural network']):
-            ai_innovation_score += 0.5
-            ai_innovation_details.append("AI/ML application (+0.5)")
-        
-        # Novel datasets or tools
-        if any(keyword in full_text for keyword in ['new dataset', 'novel dataset', 'benchmark dataset', 'open source', 'github', 'code available']):
-            ai_innovation_score += 0.8
-            ai_innovation_details.append("Novel dataset/open source (+0.8)")
-        elif any(keyword in full_text for keyword in ['tool', 'software', 'framework', 'platform']):
-            ai_innovation_score += 0.6
-            ai_innovation_details.append("Software/tool (+0.6)")
-        
-        # Reproducible research
-        if any(keyword in full_text for keyword in ['reproducible', 'replication', 'validation', 'cross-validation']):
-            ai_innovation_score += 0.4
-            ai_innovation_details.append("Reproducible research (+0.4)")
-        
-        # Cross-disciplinary innovation
-        if any(keyword in full_text for keyword in ['multimodal', 'multi-modal', 'fusion', 'integration', 'hybrid']):
-            ai_innovation_score += 0.3
-            ai_innovation_details.append("Cross-disciplinary (+0.3)")
-        
-        ai_innovation_score = min(ai_innovation_score, 1.5)
-        score += ai_innovation_score
-        score_breakdown['methodological_innovation'] = ai_innovation_score
-        score_breakdown['details']['ai_innovation_details'] = ai_innovation_details if ai_innovation_details else ["No methodological innovation detected"]
-        
-        # Factor 6: Innovation indicators (legacy, now enhanced above)
-        innovation_indicators_score = 0.0
-        innovation_indicators_reason = "No additional innovation indicators"
-        
-        if any(keyword in full_text for keyword in ['novel', 'innovative', 'first', 'breakthrough']):
-            innovation_indicators_score = 0.5
-            innovation_indicators_reason = "Innovation keywords (+0.5)"
-        elif any(keyword in full_text for keyword in ['artificial intelligence', 'machine learning', 'deep learning']):
-            innovation_indicators_score = 0.3
-            innovation_indicators_reason = "AI/ML keywords (+0.3)"
-        
-        score += innovation_indicators_score
-        score_breakdown['innovation_indicators'] = innovation_indicators_score
-        score_breakdown['details']['innovation_indicators_reason'] = innovation_indicators_reason
-        
-        # Factor 7: Add deterministic variance based on content hash
-        content_hash = hashlib.md5(full_text.encode()).hexdigest()
-        hash_factor = (int(content_hash[:8], 16) % 100) / 1000.0  # 0.000 to 0.099
-        score += hash_factor
-        score_breakdown['hash_variance'] = hash_factor
-        score_breakdown['details']['hash_variance_reason'] = f"Deterministic variance based on content hash (+{hash_factor:.3f})"
-        
-        # Ensure score is within bounds
-        score = max(0.0, min(10.0, score))
-        
-        # Update final score in breakdown
-        score_breakdown['total_score'] = round(score, 1)
-        
-        # Round to 1 decimal place for consistency
-        return round(score, 1), score_breakdown
     
     def get_high_interest_papers(self, papers_with_analyses: list) -> list:
         """
