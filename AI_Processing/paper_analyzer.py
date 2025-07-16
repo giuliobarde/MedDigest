@@ -7,6 +7,7 @@ import json
 import hashlib
 from typing import Optional
 from utils.token_monitor import TokenMonitor, TokenUsage
+from .paper_scorer import PaperScorer
 
 # Configure logging for this module
 logger = logging.getLogger(__name__)
@@ -23,232 +24,20 @@ class PaperAnalyzer:
     - Deterministic interest score based on content analysis
     """
     
-    # High Impact Methodologies/Techniques (Evidence Level 1-2)
-    HIGH_IMPACT_METHODOLOGIES = [
-        # Clinical Trial Methodologies
-        "Randomized Controlled Trial (RCT)",
-        "Double-blind Randomized Controlled Trial",
-        "Triple-blind Randomized Controlled Trial",
-        "Cluster Randomized Controlled Trial",
-        "Crossover Randomized Controlled Trial",
-        "Adaptive Randomized Trial",
-        "Pragmatic Clinical Trial",
-        "Phase III Clinical Trial",
-        "Phase IV Post-marketing Surveillance",
-        "Multi-center Clinical Trial",
-        "International Multi-center Trial",
-        
-        # Meta-analysis and Systematic Reviews
-        "Systematic Review with Meta-analysis",
-        "Network Meta-analysis",
-        "Individual Patient Data Meta-analysis",
-        "Cochrane Systematic Review",
-        "Living Systematic Review",
-        "Umbrella Review",
-        "Scoping Review with Meta-analysis",
-        
-        # Advanced Statistical Methods
-        "Bayesian Randomized Controlled Trial",
-        "Mendelian Randomization",
-        "Propensity Score Matching",
-        "Instrumental Variable Analysis",
-        "Regression Discontinuity Design",
-        "Difference-in-Differences Analysis",
-        "Interrupted Time Series Analysis",
-        "Causal Inference Methods",
-        
-        # Genomics and Precision Medicine
-        "Genome-Wide Association Study (GWAS)",
-        "Whole Genome Sequencing",
-        "Whole Exome Sequencing",
-        "Pharmacogenomics Study",
-        "Polygenic Risk Score Analysis",
-        "Multi-omics Integration",
-        "Single-cell RNA Sequencing",
-        "Spatial Transcriptomics",
-        
-        # Advanced AI/ML in Medicine
-        "Deep Learning for Medical Imaging",
-        "Federated Learning in Healthcare",
-        "Explainable AI in Clinical Decision Making",
-        "Large Language Models for Medical Tasks",
-        "Computer Vision for Pathology",
-        "Reinforcement Learning for Treatment Optimization",
-        "Transfer Learning in Medical AI",
-        "Multi-modal AI for Healthcare",
-        
-        # Regulatory and Implementation
-        "FDA Breakthrough Therapy Designation",
-        "Real-World Evidence (RWE) Study",
-        "Comparative Effectiveness Research",
-        "Health Technology Assessment",
-        "Implementation Science Study",
-        "Pragmatic-Explanatory Continuum Indicator Summary (PRECIS-2)",
-    ]
-
-    # Medium Impact Methodologies/Techniques (Evidence Level 3-4)
-    MEDIUM_IMPACT_METHODOLOGIES = [
-        # Observational Studies
-        "Prospective Cohort Study",
-        "Retrospective Cohort Study",
-        "Case-Control Study",
-        "Nested Case-Control Study",
-        "Cross-sectional Study",
-        "Longitudinal Study",
-        "Population-based Study",
-        "Registry-based Study",
-        "Electronic Health Record (EHR) Study",
-        
-        # Phase I/II Trials
-        "Phase I Clinical Trial",
-        "Phase II Clinical Trial",
-        "Dose-escalation Study",
-        "Pilot Clinical Trial",
-        "Feasibility Study",
-        "Proof-of-Concept Study",
-        "First-in-Human Study",
-        
-        # Diagnostic Studies
-        "Diagnostic Accuracy Study",
-        "Biomarker Validation Study",
-        "Screening Study",
-        "Predictive Model Development",
-        "Prognostic Model Validation",
-        "Risk Stratification Study",
-        
-        # Experimental Methods
-        "In Vivo Animal Study",
-        "Preclinical Study",
-        "Translational Research",
-        "Mechanistic Study",
-        "Pharmacokinetic/Pharmacodynamic Study",
-        "Toxicology Study",
-        
-        # Survey and Qualitative Methods
-        "Cross-sectional Survey",
-        "Longitudinal Survey",
-        "Mixed Methods Study",
-        "Qualitative Study",
-        "Ethnographic Study",
-        "Phenomenological Study",
-        "Grounded Theory Study",
-        
-        # Intermediate AI/ML Methods
-        "Machine Learning for Risk Prediction",
-        "Natural Language Processing for Clinical Notes",
-        "Computer-Aided Diagnosis",
-        "Radiomics Analysis",
-        "Predictive Modeling",
-        "Time Series Analysis for Healthcare",
-        "Survival Analysis with ML",
-        
-        # Specialized Techniques
-        "Proteomics Study",
-        "Metabolomics Study",
-        "Microbiome Analysis",
-        "Epigenetic Study",
-        "Immunophenotyping",
-        "Flow Cytometry Analysis",
-        "Mass Spectrometry Analysis",
-        "Pharmacovigilance Study",
-        
-        # Health Services Research
-        "Health Economic Evaluation",
-        "Quality of Life Assessment",
-        "Patient-Reported Outcome Measures (PROMs)",
-        "Cost-effectiveness Analysis",
-        "Budget Impact Analysis",
-        "Markov Modeling",
-    ]
-
-    # Low Impact Methodologies/Techniques (Evidence Level 5 and below)
-    LOW_IMPACT_METHODOLOGIES = [
-        # Case Studies and Reports
-        "Case Report",
-        "Case Series",
-        "Single Case Study",
-        "Multiple Case Report",
-        "Case-based Review",
-        
-        # Basic Laboratory Methods
-        "In Vitro Study",
-        "Cell Culture Study",
-        "Tissue Culture Study",
-        "Biochemical Assay",
-        "Enzyme Activity Assay",
-        "Protein Expression Analysis",
-        "Western Blot Analysis",
-        "PCR Analysis",
-        "qPCR Analysis",
-        "ELISA",
-        "Immunohistochemistry",
-        "Histological Analysis",
-        
-        # Basic Animal Models
-        "Mouse Model Study",
-        "Rat Model Study",
-        "Cell Line Study",
-        "Xenograft Model",
-        "Organoid Study",
-        
-        # Descriptive Studies
-        "Descriptive Study",
-        "Ecological Study",
-        "Correlation Study",
-        "Prevalence Study",
-        "Incidence Study",
-        "Mortality Study",
-        
-        # Reviews and Commentaries
-        "Literature Review",
-        "Narrative Review",
-        "Editorial",
-        "Commentary",
-        "Opinion Piece",
-        "Perspective Article",
-        "Letter to Editor",
-        "Short Communication",
-        
-        # Basic Statistical Methods
-        "Descriptive Statistics",
-        "Correlation Analysis",
-        "Simple Linear Regression",
-        "Chi-square Test",
-        "T-test Analysis",
-        "ANOVA",
-        "Basic Survival Analysis",
-        
-        # Theoretical and Conceptual
-        "Theoretical Model",
-        "Conceptual Framework",
-        "Hypothesis Generation",
-        "Mathematical Model",
-        "Simulation Study",
-        "Modeling Study",
-        
-        # Basic Surveys
-        "Cross-sectional Survey (Small Sample)",
-        "Convenience Sample Survey",
-        "Online Survey",
-        "Questionnaire Study",
-        "Interview Study",
-        "Focus Group Study",
-        
-        # Basic Imaging
-        "Imaging Study (Descriptive)",
-        "Radiological Case Series",
-        "Ultrasound Study",
-        "CT Scan Analysis",
-        "MRI Analysis",
-        "X-ray Analysis",
-        
-        # Preliminary Work
-        "Pilot Study (Small N)",
-        "Preliminary Results",
-        "Feasibility Assessment",
-        "Method Development",
-        "Protocol Development",
-        "Validation Study (Small Scale)",
+    # Valid medical specialties for categorization
+    VALID_SPECIALTIES = [
+        "Cardiology", "Oncology", "Neurology", "Psychiatry", "Pediatrics", "Internal Medicine",
+        "Surgery", "Emergency Medicine", "Radiology", "Pathology", "Anesthesiology", "Dermatology",
+        "Endocrinology", "Gastroenterology", "Hematology", "Infectious Disease", "Nephrology",
+        "Ophthalmology", "Orthopedics", "Otolaryngology", "Pulmonology", "Rheumatology",
+        "Urology", "Obstetrics and Gynecology", "Family Medicine", "Preventive Medicine",
+        "Public Health", "Epidemiology", "Biostatistics", "Medical Genetics", "Immunology",
+        "Pharmacology", "Toxicology", "Medical Education", "Health Policy", "Medical Ethics",
+        "Rehabilitation Medicine", "Sports Medicine", "Geriatrics", "Palliative Care",
+        "Critical Care", "Intensive Care", "Trauma Surgery", "Plastic Surgery", "Neurosurgery",
+        "Cardiothoracic Surgery", "Vascular Surgery", "Transplant Surgery", "Medical Imaging",
+        "Nuclear Medicine", "Interventional Radiology", "Radiation Oncology", "Medical Oncology",
+        "Surgical Oncology", "Gynecologic Oncology", "Pediatric Oncology", "Hematologic Oncology"
     ]
     
     # System prompt that defines the AI's role and analysis requirements
@@ -275,6 +64,7 @@ class PaperAnalyzer:
         # Use temperature=0.0 for deterministic responses
         self.llm = ChatGroq(api_key=api_key, model="llama3-8b-8192", temperature=0.0)
         self.token_monitor = token_monitor or TokenMonitor(max_tokens_per_minute=15500)
+        self.scorer = PaperScorer(self.llm)
     
     def analyze_paper(self, paper: Paper) -> tuple[Optional[PaperAnalysis], Optional[TokenUsage]]:
         """
@@ -298,8 +88,7 @@ class PaperAnalyzer:
                 input=[
                     {"role": "system", "content": self.SYSTEM_ROLE},
                     {"role": "user", "content": prompt}
-                ],
-                output_type="json"
+                ]
             )
             output_tokens = self.token_monitor.count_tokens(str(response.content))
             usage = self.token_monitor.record_usage(
@@ -310,8 +99,8 @@ class PaperAnalyzer:
             # Parse the basic analysis
             result = self._parse_analysis_response(str(response.content))
             if result:
-                # Calculate deterministic interest score
-                interest_score, score_breakdown = self._calculate_interest_score(paper, result)
+                # Calculate deterministic interest score using the PaperScorer
+                interest_score, score_breakdown = self.scorer.calculate_interest_score(paper, result)
                 # Update the analysis with the calculated score
                 result = PaperAnalysis(
                     specialty=result.specialty,
@@ -325,32 +114,6 @@ class PaperAnalyzer:
         except Exception as e:
             logger.error(f"Error analyzing paper {paper.paper_id}: {str(e)}")
             return None, None
-        
-    # Usage example for API-based methodology detection
-    def detect_methodologies_api_call(paper_text: str, methodology_list: list) -> list:
-        """
-        Placeholder function for API call to detect methodologies in paper text.
-        
-        Args:
-            paper_text (str): Full text of the paper
-            methodology_list (list): List of methodologies to check for
-            
-        Returns:
-            list: Detected methodologies from the input list
-        """
-    
-    def _calculate_paper_score(detected_methodologies: dict) -> float:
-        """
-        Calculate score based on detected methodologies.
-    
-        Args:
-            detected_methodologies (dict): Dictionary with keys 'high', 'medium', 'low'
-                                        and values as lists of detected methodologies
-                                        
-        Returns:
-            float: Calculated methodology score
-        """
-        
     
     def get_high_interest_papers(self, papers_with_analyses: list) -> list:
         """
@@ -362,14 +125,7 @@ class PaperAnalyzer:
         Returns:
             list: Papers with high interest scores, sorted by score (highest first)
         """
-        high_interest = []
-        for paper_data in papers_with_analyses:
-            if 'interest_score' in paper_data and paper_data['interest_score'] >= 7.0:
-                high_interest.append(paper_data)
-        
-        # Sort by interest score (highest first)
-        high_interest.sort(key=lambda x: x['interest_score'], reverse=True)
-        return high_interest
+        return self.scorer.get_high_interest_papers(papers_with_analyses)
     
     def get_papers_by_interest_range(self, papers_with_analyses: list, min_score: float = 0.0, max_score: float = 10.0) -> list:
         """
@@ -383,14 +139,7 @@ class PaperAnalyzer:
         Returns:
             list: Papers within the specified interest score range, sorted by score
         """
-        filtered_papers = []
-        for paper_data in papers_with_analyses:
-            if 'interest_score' in paper_data and min_score <= paper_data['interest_score'] <= max_score:
-                filtered_papers.append(paper_data)
-        
-        # Sort by interest score (highest first)
-        filtered_papers.sort(key=lambda x: x['interest_score'], reverse=True)
-        return filtered_papers
+        return self.scorer.get_papers_by_interest_range(papers_with_analyses, min_score, max_score)
     
     def _create_analysis_prompt(self, paper: Paper) -> str:
         """
