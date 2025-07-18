@@ -8,6 +8,7 @@ import hashlib
 from typing import Optional
 from utils.token_monitor import TokenMonitor, TokenUsage
 from .paper_scorer import PaperScorer
+from .prompts import PAPER_ANALYSIS_SYSTEM_ROLE, create_paper_analysis_prompt
 
 # Configure logging for this module
 logger = logging.getLogger(__name__)
@@ -40,19 +41,6 @@ class PaperAnalyzer:
         "Surgical Oncology", "Gynecologic Oncology", "Pediatric Oncology", "Hematologic Oncology"
     ]
     
-    # System prompt that defines the AI's role and analysis requirements
-    SYSTEM_ROLE = """
-    You are an expert medical research analyst with deep knowledge across all medical specialties. 
-    Your task is to analyze medical research papers and provide accurate categorization and key insights.
-    Focus on:
-    - Identifying the primary medical specialty based on the paper's content and methodology
-    - Extracting the most relevant medical concepts and terminology
-    - Providing a concise but comprehensive summary that captures the key findings
-    - Identifying key characteristics for interest scoring (study type, sample size, clinical relevance, etc.)
-    
-    Be precise and professional in your analysis. Use consistent terminology and avoid subjective language.
-    """
-    
     def __init__(self, api_key: str, token_monitor: Optional[TokenMonitor] = None):
         """
         Initialize the paper analyzer with Groq LLM.
@@ -80,13 +68,13 @@ class PaperAnalyzer:
             The analysis includes specialty categorization, keyword extraction,
             and a focused summary of the paper's main findings.
         """
-        prompt = self._create_analysis_prompt(paper)
+        prompt = create_paper_analysis_prompt(paper, self.VALID_SPECIALTIES)
         try:
-            input_text = self.SYSTEM_ROLE + prompt
+            input_text = PAPER_ANALYSIS_SYSTEM_ROLE + prompt
             input_tokens = self.token_monitor.count_tokens(input_text)
             response = self.llm.invoke(
                 input=[
-                    {"role": "system", "content": self.SYSTEM_ROLE},
+                    {"role": "system", "content": PAPER_ANALYSIS_SYSTEM_ROLE},
                     {"role": "user", "content": prompt}
                 ]
             )
@@ -140,48 +128,6 @@ class PaperAnalyzer:
             list: Papers within the specified interest score range, sorted by score
         """
         return self.scorer.get_papers_by_interest_range(papers_with_analyses, min_score, max_score)
-    
-    def _create_analysis_prompt(self, paper: Paper) -> str:
-        """
-        Create the prompt for paper analysis.
-        
-        Args:
-            paper (Paper): The paper to analyze
-            
-        Returns:
-            str: Formatted prompt for the LLM
-            
-        Note:
-            The prompt includes paper metadata and specific instructions
-            for the analysis format and requirements.
-        """
-        return f"""
-        Analyze this medical research paper and provide a JSON response with the exact structure shown below.
-        
-        Title: {paper.title}
-        Abstract: {paper.abstract}
-        Conclusion: {paper.conclusion}
-        Authors: {', '.join(paper.authors)}
-        arXiv Categories: {', '.join(paper.categories)}
-        
-        Instructions:
-        1. Write a 2-3 sentence summary of the paper's key findings
-        2. Identify the primary medical specialty from this list: {', '.join(sorted(self.VALID_SPECIALTIES))}
-        3. Extract 5 key medical concepts/terms from this research
-        4. Identify study characteristics (study type, sample size, clinical relevance, etc.)
-        
-        IMPORTANT: Return ONLY a valid JSON object with this exact structure:
-        {{
-            "summary": "2-3 sentence summary of the paper's key findings",
-            "specialty": "exact specialty name from the provided list",
-            "keywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"],
-            "study_type": "type of study (e.g., clinical trial, observational study, etc.)",
-            "sample_size_indicator": "indication of sample size (e.g., large, small, not specified)",
-            "clinical_relevance": "level of clinical relevance (high, moderate, low)"
-        }}
-        
-        Do not include any text before or after the JSON object. Ensure all quotes are properly escaped.
-        """
     
     def _parse_analysis_response(self, response: str) -> Optional[PaperAnalysis]:
         """

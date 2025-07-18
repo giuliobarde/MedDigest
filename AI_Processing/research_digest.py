@@ -8,6 +8,17 @@ import datetime
 import json
 import re
 import time
+from .prompts import (
+    create_batch_analysis_prompt,
+    create_executive_summary_prompt,
+    create_key_discoveries_prompt,
+    create_emerging_trends_prompt,
+    create_medical_impact_prompt,
+    create_cross_specialty_insights_prompt,
+    create_clinical_implications_prompt,
+    create_research_gaps_prompt,
+    create_future_directions_prompt
+)
 
 logger = logging.getLogger(__name__)
 
@@ -198,35 +209,7 @@ class ResearchDigest:
             estimated_tokens = len(batch_text) // 4 + 2000  # Add buffer for prompt and response
             self._check_rate_limit(estimated_tokens)
             
-            prompt = f"""
-            You are a medical research analyst tasked with analyzing a batch of {len(batch)} medical research papers. Your goal is to provide a comprehensive analysis that will be used in a medical research digest newsletter.
-
-            PAPERS TO ANALYZE:
-            {batch_text}
-
-            ANALYSIS REQUIREMENTS:
-            1. Read each paper carefully, focusing on methodology, findings, and clinical implications
-            2. Identify connections and patterns across multiple papers in the batch
-            3. Consider the broader impact on medical practice and patient care
-            4. Note any cross-specialty implications or interdisciplinary connections
-
-            PROVIDE YOUR ANALYSIS IN THE FOLLOWING JSON FORMAT. Return ONLY valid JSON, no additional text:
-
-            {{
-                "batch_summary": "2-3 paragraph summary focusing on key findings and implications for current medical practices",
-                "significant_findings": ["List of top 5 most significant findings across all papers in this batch"],
-                "major_trends": ["List of 2-3 major trends or patterns identified across multiple papers in this batch"],
-                "medical_impact": "Brief analysis of potential impact on medical practice and patient care",
-                "cross_specialty_insights": "Brief analysis of cross-specialty implications and connections",
-                "medical_keywords": ["List of 10-15 relevant medical keywords across all research papers in this batch"],
-                "papers_analyzed": {len(batch)},
-                "batch_number": {batch_num},
-                "specialties_covered": ["List of medical specialties represented in this batch"]
-            }}
-            
-            Ensure the analysis is comprehensive and provides sufficient detail for later integration into a complete newsletter digest.
-            Return ONLY the JSON object, no additional text or explanations.
-            """
+            prompt = create_batch_analysis_prompt(batch, batch_text, batch_num)
             
             response = None
             try:
@@ -423,34 +406,7 @@ class ResearchDigest:
             else:
                 logger.warning(f"Batch {batch_num} has no analysis results, skipping...")
 
-        prompt = f"""
-        You are a senior medical research analyst creating an executive summary for a medical research digest newsletter. Your audience includes healthcare professionals, researchers, and medical administrators who need to quickly understand the most important developments in medical research.
-
-        RESEARCH DATA:
-        {batch_analysis_results}
-
-        TASK: Generate a compelling executive summary that synthesizes the key insights from all research findings.
-
-        EXECUTIVE SUMMARY REQUIREMENTS:
-        1. Start with the most impactful or surprising finding that will grab readers' attention
-        2. Identify and discuss 2-3 major themes that emerge across multiple research areas
-        3. Emphasize how these findings could change medical practice or improve patient care
-        4. Briefly mention what these trends suggest about the future of medicine
-        5. Write for an educated medical audience using appropriate terminology
-
-        FORMAT: 2-3 well-structured paragraphs (approximately 300-400 words total)
-
-        CONTENT FOCUS:
-        - Prioritize findings with immediate clinical relevance
-        - Highlight breakthrough discoveries or novel approaches
-        - Emphasize cross-specialty connections and integrated care implications
-        - Include specific examples where possible
-        - Avoid technical jargon that would confuse non-specialists
-
-        CRITICAL INSTRUCTION: Write the executive summary directly without any introductory phrases like "Here is..." or "This summary..." or "Based on the research data...". Start immediately with the content as if it's the first paragraph of the newsletter.
-
-        Write a clear, engaging executive summary that would make a busy healthcare professional want to read the full digest.
-        """
+        prompt = create_executive_summary_prompt(batch_analysis_results)
         
         try:
             response_content = self._make_llm_call_with_monitoring(prompt, "executive_summary")
@@ -485,36 +441,7 @@ class ResearchDigest:
             else:
                 logger.warning(f"Batch {batch_num} has no analysis results, skipping...")
 
-        prompt = f"""
-        You are a medical research analyst tasked with identifying the most significant discoveries from a comprehensive analysis of medical research papers.
-
-        RESEARCH DATA:
-        {batch_analysis_results}
-
-        TASK: Extract and synthesize the 10 most important discoveries across all research findings.
-
-        KEY DISCOVERY CRITERIA:
-        - Findings that could change medical practice or improve patient outcomes
-        - Novel methodologies, breakthrough technologies, or paradigm shifts
-        - Discoveries that have implications across multiple medical fields
-        - Well-supported findings with robust methodology
-        - Discoveries that can be implemented in clinical settings
-
-        FORMAT REQUIREMENTS:
-        - Return exactly 10 discoveries as a JSON array
-        - Each discovery should be 1-2 sentences long
-        - Be specific and actionable
-        - Include the medical specialty or context where relevant
-        - Use clear, professional medical terminology
-
-        EXAMPLE FORMAT:
-        ["Specific finding with clinical context and impact",
-         "Specific finding with clinical context and impact",
-         ...]
-
-        IMPORTANT: Return ONLY the JSON array, no additional text or explanations.
-        CRITICAL INSTRUCTION: Write the key discoveries directly without any introductory phrases like "Here is..." or "This summary..." or "Based on the research data...". Start immediately with the content as if it's the first paragraph of the newsletter.
-        """
+        prompt = create_key_discoveries_prompt(batch_analysis_results)
         
         try:
             response_content = self._make_llm_call_with_monitoring(prompt, "key_discoveries")
@@ -560,38 +487,7 @@ class ResearchDigest:
             else:
                 logger.warning(f"Batch {batch_num} has no analysis results, skipping...")
 
-        prompt = f"""
-        You are a medical research analyst specializing in trend analysis and pattern recognition in medical research.
-
-        RESEARCH DATA:
-        {batch_analysis_results}
-
-        TASK: Identify and analyze emerging trends that are shaping the future of medical research and practice.
-
-        TREND ANALYSIS FRAMEWORK:
-        1. New research approaches, technologies, or analytical methods
-        2. Shifts in treatment approaches, diagnostic methods, or care delivery
-        3. Convergence of different medical specialties or integration with other fields
-        4. Focus on personalized medicine, patient outcomes, or patient experience
-        5. AI, machine learning, digital health, or precision medicine advances
-
-        ANALYSIS REQUIREMENTS:
-        - Identify 2-3 most significant emerging trends
-        - Explain why these trends are important and where they're leading
-        - Discuss potential implications for healthcare delivery
-        - Consider both opportunities and challenges
-        - Include specific examples from the research data
-
-        FORMAT: 1-2 well-structured paragraphs (approximately 200-300 words)
-        - Start with the most impactful trend
-        - Connect trends to practical implications
-        - Use clear, professional medical terminology
-        - Focus on actionable insights for healthcare professionals
-
-        CRITICAL INSTRUCTION: Write the emerging trends directly without any introductory phrases like "Here is..." or "This summary..." or "Based on the research data...". Start immediately with the content as if it's the first paragraph of the newsletter.
-
-        Write an analysis that helps readers understand the direction of medical research and its implications for the future of healthcare.
-        """
+        prompt = create_emerging_trends_prompt(batch_analysis_results)
         
         try:
             response_content = self._make_llm_call_with_monitoring(prompt, "emerging_trends")
@@ -626,38 +522,7 @@ class ResearchDigest:
             else:
                 logger.warning(f"Batch {batch_num} has no analysis results, skipping...")
 
-        prompt = f"""
-        You are a healthcare policy analyst and medical practice consultant with expertise in translating research findings into clinical applications.
-
-        RESEARCH DATA:
-        {batch_analysis_results}
-
-        TASK: Analyze the potential impact of these research findings on medical practice, patient care, and healthcare delivery.
-
-        IMPACT ANALYSIS FRAMEWORK:
-        1. Changes that could be implemented in the next 1-2 years
-        2. How findings could improve patient health, safety, or experience
-        3. Effects on workflow, efficiency, or resource utilization
-        4. Potential cost savings, increased costs, or value propositions
-        5. Barriers to adoption and strategies to overcome them
-
-        ANALYSIS REQUIREMENTS:
-        - Focus on practical, actionable implications
-        - Prioritize findings with the highest potential impact
-        - Consider different healthcare settings (hospitals, clinics, primary care, etc.)
-        - Address both positive impacts and potential risks or limitations
-        - Include specific examples of how findings could be applied
-
-        FORMAT: 1 comprehensive paragraph (approximately 150-200 words)
-        - Start with the most significant impact
-        - Use clear, professional medical terminology
-        - Provide concrete examples where possible
-        - Consider the perspective of different healthcare stakeholders
-
-        CRITICAL INSTRUCTION: Write the medical impact directly without any introductory phrases like "Here is..." or "This summary..." or "Based on the research data...". Start immediately with the content as if it's the first paragraph of the newsletter.
-
-        Write an analysis that helps healthcare professionals understand how these research findings could transform their practice and improve patient care.
-        """
+        prompt = create_medical_impact_prompt(batch_analysis_results)
         
         try:
             response_content = self._make_llm_call_with_monitoring(prompt, "medical_impact")
@@ -692,38 +557,7 @@ class ResearchDigest:
             else:
                 logger.warning(f"Batch {batch_num} has no analysis results, skipping...")
 
-        prompt = f"""
-        You are a medical integration specialist and interdisciplinary research analyst with expertise in identifying connections across medical specialties.
-
-        RESEARCH DATA:
-        {batch_analysis_results}
-
-        TASK: Analyze the cross-specialty implications and interdisciplinary connections revealed by these research findings.
-
-        CROSS-SPECIALTY ANALYSIS FRAMEWORK:
-        1. Common biological pathways, disease processes, or treatment approaches
-        2. How innovations in one specialty could benefit others
-        3. Opportunities for collaborative treatment approaches
-        4. How findings from different specialties complement each other
-        5. How multiple specialties could work together for better outcomes
-
-        ANALYSIS REQUIREMENTS:
-        - Identify specific connections between different medical specialties
-        - Explain how findings in one area could inform practice in another
-        - Discuss opportunities for collaborative research or clinical practice
-        - Consider barriers to cross-specialty collaboration and potential solutions
-        - Highlight examples of successful interdisciplinary approaches
-
-        FORMAT: 1-2 well-structured paragraphs (approximately 200-300 words)
-        - Start with the most compelling cross-specialty connection
-        - Provide specific examples of interdisciplinary applications
-        - Use clear, professional medical terminology
-        - Focus on practical implications for integrated care
-
-        CRITICAL INSTRUCTION: Write the cross-specialty insights directly without any introductory phrases like "Here is..." or "This summary..." or "Based on the research data...". Start immediately with the content as if it's the first paragraph of the newsletter.
-
-        Write an analysis that demonstrates how breaking down specialty silos could lead to better patient care and more effective medical practice.
-        """
+        prompt = create_cross_specialty_insights_prompt(batch_analysis_results)
         
         try:
             response_content = self._make_llm_call_with_monitoring(prompt, "cross_specialty_insights")
@@ -758,39 +592,7 @@ class ResearchDigest:
             else:
                 logger.warning(f"Batch {batch_num} has no analysis results, skipping...")
 
-        prompt = f"""
-        You are a clinical practice consultant and evidence-based medicine specialist with expertise in translating research findings into clinical decision-making.
-
-        RESEARCH DATA:
-        {batch_analysis_results}
-
-        TASK: Analyze the direct clinical implications of these research findings for healthcare providers and their patients.
-
-        CLINICAL IMPLICATIONS FRAMEWORK:
-        1. How findings could improve disease detection, screening, or diagnostic accuracy
-        2. Changes to therapeutic approaches, medication choices, or intervention strategies
-        3. Opportunities for disease prevention, risk reduction, or health promotion
-        4. Changes to monitoring, follow-up, or care coordination
-        5. How findings could inform clinical guidelines or decision-making tools
-
-        ANALYSIS REQUIREMENTS:
-        - Focus on immediate clinical applications and decision points
-        - Consider different patient populations and clinical scenarios
-        - Address both benefits and potential risks or limitations
-        - Include specific clinical examples and case scenarios
-        - Discuss evidence strength and confidence in recommendations
-        - Consider implementation challenges and practical considerations
-
-        FORMAT: 1-2 well-structured paragraphs (approximately 200-300 words)
-        - Start with the most clinically significant implications
-        - Use clear, professional medical terminology
-        - Provide concrete clinical examples
-        - Address both immediate and longer-term clinical applications
-
-        CRITICAL INSTRUCTION: Write the clinical implications directly without any introductory phrases like "Here is..." or "This summary..." or "Based on the research data..." or "Direct Clinical Implications:". Start immediately with the content as if it's the first paragraph of the newsletter and do not include any other text.
-
-        Write an analysis that helps clinicians understand how these research findings should influence their daily practice and patient care decisions.
-        """
+        prompt = create_clinical_implications_prompt(batch_analysis_results)
         
         try:
             response_content = self._make_llm_call_with_monitoring(prompt, "clinical_implications")
@@ -825,39 +627,7 @@ class ResearchDigest:
             else:
                 logger.warning(f"Batch {batch_num} has no analysis results, skipping...")
 
-        prompt = f"""
-        You are a research strategy consultant and medical research analyst with expertise in identifying research gaps and opportunities for future investigation.
-
-        RESEARCH DATA:
-        {batch_analysis_results}
-
-        TASK: Identify and analyze the most significant research gaps and opportunities revealed by these findings.
-
-        RESEARCH GAPS ANALYSIS FRAMEWORK:
-        1. Areas where current research methods are insufficient or could be improved
-        2. Underserved patient populations or demographic groups needing more research
-        3. Questions that remain unanswered for clinical decision-making
-        4. Need for longer-term studies or follow-up research
-        5. Missing head-to-head comparisons or effectiveness studies
-        6. Research needed to understand how to implement findings in practice
-
-        ANALYSIS REQUIREMENTS:
-        - Focus on gaps that have the highest potential impact on patient care
-        - Prioritize gaps that could be addressed with feasible research approaches
-        - Consider both basic science and clinical research opportunities
-        - Identify gaps that could benefit from interdisciplinary collaboration
-        - Discuss the potential value and feasibility of addressing each gap
-
-        FORMAT: 1 comprehensive paragraph (approximately 150-200 words)
-        - Start with the most critical research gap
-        - Use clear, professional medical terminology
-        - Provide specific examples of what research is needed
-        - Consider the perspective of researchers, funders, and clinicians
-
-        CRITICAL INSTRUCTION: Write the research gaps directly without any introductory phrases like "Here is..." or "This summary..." or "Based on the research data...". Start immediately with the content as if it's the first paragraph of the newsletter.
-
-        Write an analysis that helps researchers and funding agencies understand where to focus their efforts for maximum impact on medical knowledge and patient care.
-        """
+        prompt = create_research_gaps_prompt(batch_analysis_results)
         
         try:
             response_content = self._make_llm_call_with_monitoring(prompt, "research_gaps")
@@ -892,40 +662,7 @@ class ResearchDigest:
             else:
                 logger.warning(f"Batch {batch_num} has no analysis results, skipping...")
 
-        prompt = f"""
-        You are a medical futurist and strategic research analyst with expertise in predicting the trajectory of medical research and clinical practice.
-
-        RESEARCH DATA:
-        {batch_analysis_results}
-
-        TASK: Analyze the future directions and trajectory of medical research and practice based on these findings.
-
-        FUTURE DIRECTIONS ANALYSIS FRAMEWORK:
-        1. How current technologies will advance and new ones will emerge
-        2. Changes in how research is conducted, funded, or prioritized
-        3. How healthcare delivery and patient care will evolve
-        4. How different medical fields will integrate and collaborate
-        5. How patient engagement, personalized medicine, and outcomes will develop
-        6. How healthcare systems will need to adapt to new findings
-
-        ANALYSIS REQUIREMENTS:
-        - Base predictions on current research trends and technological capabilities
-        - Consider both near-term (1-3 years) and longer-term (5-10 years) developments
-        - Identify key drivers and barriers to future progress
-        - Discuss implications for healthcare workforce, training, and infrastructure
-        - Consider ethical, regulatory, and economic factors
-        - Include specific examples of emerging technologies or approaches
-
-        FORMAT: 1 comprehensive paragraph (approximately 150-200 words)
-        - Start with the most transformative future direction
-        - Use clear, professional medical terminology
-        - Provide specific examples of future developments
-        - Consider both opportunities and challenges
-
-        CRITICAL INSTRUCTION: Write the future directions directly without any introductory phrases like "Here is..." or "This summary..." or "Based on the research data...". Start immediately with the content as if it's the first paragraph of the newsletter.
-
-        Write an analysis that helps healthcare leaders and researchers understand where medical science is heading and how to prepare for future developments.
-        """
+        prompt = create_future_directions_prompt(batch_analysis_results)
         
         try:
             response_content = self._make_llm_call_with_monitoring(prompt, "future_directions")
