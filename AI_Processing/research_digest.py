@@ -705,12 +705,12 @@ class ResearchDigest:
 
     def _digest_summary(self) -> dict:
         """
-        Generate a comprehensive digest JSON summary from the batch analyses.
+        Generate a comprehensive digest summary from the batch analyses.
         
         Returns:
-            dict: The digest
+            dict: The digest as a dictionary
         """
-        print("\nGenerating digest summary JSON...")
+        print("\nGenerating digest summary...")
 
         # Print highest rated papers per specialty
         self._print_highest_rated_papers_per_specialty()
