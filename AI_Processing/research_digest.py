@@ -2,12 +2,14 @@ from Data_Classes.classes import Paper, PaperAnalysis
 from Data_Retrieval.data_retrieval import ArxivClient
 from AI_Processing.paper_analyzer import PaperAnalyzer
 from utils.token_monitor import TokenMonitor
+from Firebase import FirebaseClient, FirebaseConfig
 from typing import List, Dict
 import logging
 import datetime
 import json
 import re
 import time
+import uuid
 from .prompts_loader import (
     BATCH_ANALYSIS_PROMPT,
     EXECUTIVE_SUMMARY_PROMPT,
@@ -51,6 +53,18 @@ class ResearchDigest:
         self.rate_limit_threshold = 14000  # Sleep when approaching 14k tokens (leaving 2k buffer)
         self.current_minute_tokens = 0
         self.minute_start_time = time.time()
+        self.id = str(uuid.uuid4())  # Generate unique ID for this digest
+        
+        # Initialize Firebase client if configuration is available
+        try:
+            firebase_config = FirebaseConfig.from_env()
+            self.firebase_client = FirebaseClient(firebase_config)
+            self.firebase_available = True
+            logger.info("Firebase client initialized successfully")
+        except Exception as e:
+            logger.warning(f"Firebase not available: {str(e)}")
+            self.firebase_client = None
+            self.firebase_available = False
 
     def _check_rate_limit(self, estimated_tokens: int) -> None:
         """
@@ -743,4 +757,55 @@ class ResearchDigest:
                 paper_copy["specialty"] = specialty
                 digest["papers"].append(paper_copy)
 
+        # Store the digest in Firebase
+        if self.firebase_available and self.firebase_client:
+            try:
+                # Use the Firebase client method to store the digest
+                digest_data = self.to_dict()
+                logger.info(f"Attempting to store digest with ID: {self.id}")
+                logger.info(f"Digest data keys: {list(digest_data.keys())}")
+                
+                success = self.firebase_client.store_digest(digest_data, self.id)
+                if success:
+                    logger.info(f"Digest stored in Firebase with ID: {self.id}")
+                else:
+                    logger.error("Failed to store digest in Firebase")
+            except Exception as e:
+                logger.error(f"Failed to store digest in Firebase: {str(e)}")
+                logger.error(f"Digest ID: {self.id}")
+                logger.error(f"Digest ID type: {type(self.id)}")
+        else:
+            logger.warning("Firebase not available, skipping storage of digest.")
+
         return digest
+
+    def to_dict(self) -> Dict:
+        """
+        Convert the digest to a dictionary format for storage.
+        
+        Returns:
+            Dict: Dictionary representation of the digest
+        """
+        # Clean the data to ensure it's serializable for Firestore
+        def clean_value(value):
+            if isinstance(value, (str, int, float, bool, type(None))):
+                return value
+            elif isinstance(value, (list, tuple)):
+                return [clean_value(item) for item in value]
+            elif isinstance(value, dict):
+                return {str(k): clean_value(v) for k, v in value.items()}
+            elif hasattr(value, '__dict__'):
+                return str(value)
+            else:
+                return str(value)
+        
+        digest_data = {
+            "id": str(self.id),
+            "date_generated": datetime.datetime.now().isoformat(),
+            "total_papers": sum(len(data["papers"]) for data in self.specialty_data.values()),
+            "specialty_data": clean_value(self.specialty_data),
+            "batch_analyses": clean_value(self.batch_analyses),
+            "digest_summary": clean_value(getattr(self, 'digest_json', {}))
+        }
+        
+        return digest_data
