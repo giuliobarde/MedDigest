@@ -46,14 +46,6 @@ class ResearchDigest:
         """
         self.arxiv_client = ArxivClient()
         self.token_monitor = TokenMonitor(max_tokens_per_minute=16000)
-        self.analyzer = PaperAnalyzer(api_key, token_monitor=self.token_monitor)
-        self.llm = self.analyzer.llm
-        self.specialty_data: Dict[str, Dict] = {}
-        self.batch_analyses: Dict[int, Dict] = {}
-        self.rate_limit_threshold = 14000  # Sleep when approaching 14k tokens (leaving 2k buffer)
-        self.current_minute_tokens = 0
-        self.minute_start_time = time.time()
-        self.id = str(uuid.uuid4())  # Generate unique ID for this digest
         
         # Initialize Firebase client if configuration is available
         try:
@@ -65,6 +57,16 @@ class ResearchDigest:
             logger.warning(f"Firebase not available: {str(e)}")
             self.firebase_client = None
             self.firebase_available = False
+        
+        # Initialize analyzer with Firebase client if available
+        self.analyzer = PaperAnalyzer(api_key, token_monitor=self.token_monitor, firebase_client=self.firebase_client)
+        self.llm = self.analyzer.llm
+        self.specialty_data: Dict[str, Dict] = {}
+        self.batch_analyses: Dict[int, Dict] = {}
+        self.rate_limit_threshold = 14000  # Sleep when approaching 14k tokens (leaving 2k buffer)
+        self.current_minute_tokens = 0
+        self.minute_start_time = time.time()
+        self.id = str(uuid.uuid4())  # Generate unique ID for this digest
 
     def _check_rate_limit(self, estimated_tokens: int) -> None:
         """
@@ -803,9 +805,6 @@ class ResearchDigest:
             "id": str(self.id),
             "date_generated": datetime.datetime.now().isoformat(),
             "total_papers": sum(len(data["papers"]) for data in self.specialty_data.values()),
-            "specialty_data": clean_value(self.specialty_data),
-            "batch_analyses": clean_value(self.batch_analyses),
-            "digest_summary": clean_value(getattr(self, 'digest_json', {}))
         }
         
         return digest_data
