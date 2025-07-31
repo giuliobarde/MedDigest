@@ -750,20 +750,34 @@ class ResearchDigest:
         # Calculate total papers from specialty data
         total_papers = sum(len(data["papers"]) for data in self.specialty_data.values())
         digest["total_papers"] = total_papers
-        
-        # Add papers list for newsletter compatibility
-        digest["papers"] = []
-        for specialty, data in self.specialty_data.items():
-            for paper in data["papers"]:
-                paper_copy = paper.copy()
-                paper_copy["specialty"] = specialty
-                digest["papers"].append(paper_copy)
 
-        # Store the digest in Firebase
+        # Always store the digest in Firebase when available
         if self.firebase_available and self.firebase_client:
             try:
-                # Use the Firebase client method to store the digest
-                digest_data = self.to_dict()
+                # Clean the data for Firebase storage
+                def clean_value(value):
+                    if isinstance(value, (str, int, float, bool, type(None))):
+                        return value
+                    elif isinstance(value, (list, tuple)):
+                        return [clean_value(item) for item in value]
+                    elif isinstance(value, dict):
+                        return {str(k): clean_value(v) for k, v in value.items()}
+                    elif hasattr(value, '__dict__'):
+                        return str(value)
+                    else:
+                        return str(value)
+                
+                # Clean the digest data
+                cleaned_digest = clean_value(digest)
+                
+                # Prepare storage format
+                digest_data = {
+                    "id": str(self.id),
+                    "date_generated": datetime.datetime.now().isoformat(),
+                    "total_papers": total_papers,
+                    "digest_summary": cleaned_digest
+                }
+                
                 logger.info(f"Attempting to store digest with ID: {self.id}")
                 logger.info(f"Digest data keys: {list(digest_data.keys())}")
                 
@@ -780,31 +794,3 @@ class ResearchDigest:
             logger.warning("Firebase not available, skipping storage of digest.")
 
         return digest
-
-    def to_dict(self) -> Dict:
-        """
-        Convert the digest to a dictionary format for storage.
-        
-        Returns:
-            Dict: Dictionary representation of the digest
-        """
-        # Clean the data to ensure it's serializable for Firestore
-        def clean_value(value):
-            if isinstance(value, (str, int, float, bool, type(None))):
-                return value
-            elif isinstance(value, (list, tuple)):
-                return [clean_value(item) for item in value]
-            elif isinstance(value, dict):
-                return {str(k): clean_value(v) for k, v in value.items()}
-            elif hasattr(value, '__dict__'):
-                return str(value)
-            else:
-                return str(value)
-        
-        digest_data = {
-            "id": str(self.id),
-            "date_generated": datetime.datetime.now().isoformat(),
-            "total_papers": sum(len(data["papers"]) for data in self.specialty_data.values()),
-        }
-        
-        return digest_data
