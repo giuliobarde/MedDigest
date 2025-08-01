@@ -4,7 +4,7 @@ Email Sender Script
 Uses the existing email configuration to send emails via Gmail API.
 """
 
-from email_config import gmail_send_message
+from .email_config import gmail_send_message
 
 
 def send_newsletter_email(to_email, subject, body):

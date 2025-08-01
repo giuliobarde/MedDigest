@@ -1,24 +1,13 @@
 # Standard library imports for core functionality
 import datetime
 import logging
-import requests
-import xml.etree.ElementTree as ET
-from dataclasses import dataclass
-from typing import List, Dict, Set, Optional
-from urllib.parse import urlencode
+
 
 # Third-party imports for AI and environment management
-from langchain_groq import ChatGroq
-import time
 from dotenv import load_dotenv
 import os
-import json
-import re
 
 # Local application imports
-from Data_Classes.classes import Paper, PaperAnalysis
-from Data_Retrieval.data_retrieval import ArxivClient
-from AI_Processing.paper_analyzer import PaperAnalyzer
 from AI_Processing.research_digest import ResearchDigest
 
 # Load environment variables from .env file
@@ -60,7 +49,19 @@ def main():
     # Generate the newsletter
     from Output_Generation.newsletter import Newsletter
     newsletter = Newsletter(digest)
-    newsletter.generate_newsletter()
+    current_newsletter = newsletter.generate_newsletter()
+
+    # Try to send the newsletter, but don't fail if email sending doesn't work
+    try:
+        from Email_System.send_email import send_newsletter_email
+        result = send_newsletter_email("giuliobarde@gmail.com", "MedDigest Newsletter", current_newsletter)
+        if result:
+            logger.info("✅ Newsletter email sent successfully!")
+        else:
+            logger.warning("⚠️ Email sending failed, but newsletter was generated and saved locally.")
+    except Exception as e:
+        logger.warning(f"⚠️ Email sending failed with error: {e}")
+        logger.info("📧 Newsletter was generated and saved locally. You can find it in the Newsletters directory.")
 
 # Entry point guard to ensure script runs only when executed directly
 if __name__ == "__main__":
