@@ -60,29 +60,4 @@ def send_bulk_emails(recipients, subject, body):
     print(f"✅ Successful: {len(results['successful'])}")
     print(f"❌ Failed: {len(results['failed'])}")
     
-    return results
-
-
-if __name__ == "__main__":
-    # Example usage
-    print("📧 Email Sender Script")
-    print("=" * 30)
-    
-    # Single email example
-    recipient = "giuliobarde@gmail.com"
-    subject = "Test Newsletter"
-    body = """
-    Hello!
-    
-    This is a test email from the MedDigest newsletter system.
-    
-    Best regards,
-    MedDigest Team
-    """
-    
-    print(f"Sending test email to: {recipient}")
-    send_newsletter_email(recipient, subject, body)
-    
-    # Bulk email example (commented out for safety)
-    # recipients = ["user1@example.com", "user2@example.com"]
-    # send_bulk_emails(recipients, subject, body) 
+    return results 

@@ -7,8 +7,8 @@ serviceAccountKey.json
 *.json
 
 # Email credentials
-meddigest-467614-4f22a1ffd09a.json
 credentials.json
+token.pickle
 
 # Python
 __pycache__/
