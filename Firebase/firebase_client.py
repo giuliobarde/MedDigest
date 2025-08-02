@@ -1,14 +1,15 @@
 """
 Firebase client for MedDigest.
 
-This module provides Firebase Firestore operations for storing research digests.
+This module provides Firebase Firestore operations for storing research digests and managing user subscriptions.
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import firebase_admin
 from firebase_admin import credentials, firestore
 from firebase_admin.exceptions import FirebaseError
+import datetime
 
 from .firebase_config import FirebaseConfig
 
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 class FirebaseClient:
     """
-    Firebase client for storing research digests in Firestore.
+    Firebase client for storing research digests and managing user subscriptions in Firestore.
     """
     
     def __init__(self, config: FirebaseConfig):
@@ -112,3 +113,44 @@ class FirebaseClient:
             logger.error(f"Failed to retrieve digest {digest_id}: {str(e)}")
             return None
     
+    def get_latest_digest(self) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve the most recent research digest from Firestore.
+        Returns:
+            Optional[Dict[str, Any]]: The latest digest data if found, None otherwise.
+        """
+        try:
+            digests = (
+                self.db.collection('research_digests')
+                .order_by('date_generated', direction=firestore.Query.DESCENDING)
+                .limit(1)
+                .stream()
+            )
+            for doc in digests:
+                data = doc.to_dict()
+                data['id'] = doc.id  
+                return data
+            return None  
+        except Exception as e:
+            logger.error(f"Failed to retrieve latest digest: {str(e)}")
+            return None
+
+    def store_user_signup(self, email: str, first_name: str, last_name: str, medical_interests: List[str]) -> bool:
+        """Simple method to store user signup data."""
+        try:
+            user_data = {
+                'email': email.lower().strip(),
+                'first_name': first_name.strip(),
+                'last_name': last_name.strip(),
+                'medical_interests': medical_interests,
+                'signed_up_at': datetime.datetime.utcnow()
+            }
+            
+            self.db.collection('user_signups').document(email.lower().strip()).set(user_data)
+            logger.info(f"Stored user signup: {email}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to store signup: {str(e)}")
+            return False
+
