@@ -11,6 +11,7 @@ import os
 import sys
 from typing import Any, Dict, Optional
 from datetime import datetime
+
 # Third-party imports
 from dotenv import load_dotenv
 
@@ -92,6 +93,7 @@ def generate_newsletter(digest: ResearchDigest) -> Optional[str]:
         logger.error(f"Failed to generate newsletter: {e}")
         return None
     
+
 def get_all_user_subscriptions(firebase_client: FirebaseClient) -> Optional[Dict[str, Any]]:
     """
     Get all user subscriptions from Firestore.
@@ -101,6 +103,7 @@ def get_all_user_subscriptions(firebase_client: FirebaseClient) -> Optional[Dict
     except Exception as e:
         logger.error(f"Failed to get all user subscriptions: {e}")
         return None
+
 
 def send_newsletter_email_safely(newsletter_content: str, user_subscriptions: Dict[str, Any]) -> bool:
     """
