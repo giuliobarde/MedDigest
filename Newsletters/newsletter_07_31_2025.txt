@@ -4,8 +4,7 @@
                   Curated Insights from the Latest Medical Literature
 ================================================================================
 
-
-Date: 2025-07-30   |   Total Papers Analyzed: 2
+Date: 2025-07-31   |   Total Papers Analyzed: 1
 ================================================================================
 
 EXECUTIVE SUMMARY
@@ -90,4 +89,4 @@ Thank you for reading MedDigest! For more information, visit https://meddigest.e
 © 2025 MedDigest. All rights reserved.
 ================================================================================
 
-Generated on: July 30, 2025 at 07:16 PM
+Generated on: July 31, 2025 at 11:54 AM
