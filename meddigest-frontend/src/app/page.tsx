@@ -177,15 +177,17 @@ const PROCESS_STEPS = [
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100">
       <ModernBanner />
       <NavTabs />
       
       <main className="max-w-6xl mx-auto px-6 py-24">
-        <div className="bg-white rounded-2xl shadow-sm p-16 mb-24 text-center border border-gray-100">
-          <h2 className="text-4xl font-bold text-gray-900 mb-8">
-            Welcome to MedDigest
-          </h2>
+        <div className="bg-white rounded-2xl shadow-sm p-16 mb-24 border border-gray-100">
+          <div className="text-center mb-8">
+            <h2 className="text-4xl font-bold text-gray-900">
+              Welcome to MedDigest
+            </h2>
+          </div>
           <div className="max-w-4xl mx-auto">
             <p className="text-lg text-gray-600 leading-relaxed mb-12">
               We automatically analyze medical research papers from arXiv's repositories, 
