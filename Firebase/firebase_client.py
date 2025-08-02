@@ -93,7 +93,7 @@ class FirebaseClient:
         Store a user subscription in Firestore.
         """
         try:
-            subscription_ref = self.db.collection('user_subscriptions').document(user_id)
+            subscription_ref = self.db.collection('user_signups').document(user_id)
             subscription_ref.set(subscription_data)
             logger.info(f"Stored user subscription: {user_id}")
             return True
@@ -232,20 +232,22 @@ class FirebaseClient:
             logger.error(f"Failed to retrieve digest {digest_id}: {str(e)}")
             return None
     
-    def get_user_subscription(self, user_id: str) -> Optional[Dict[str, Any]]:
+    def get_all_user_subscriptions(self) -> Optional[Dict[str, Any]]:
         """
-        Retrieve a user subscription from Firestore.
+        Retrieve all user subscriptions from Firestore.
         """
         try:
-            subscription_ref = self.db.collection('user_subscriptions').document(user_id)
-            subscription_doc = subscription_ref.get()
+            subscriptions_ref = self.db.collection('user_signups')
+            docs = subscriptions_ref.stream()
             
-            if subscription_doc.exists:
-                return subscription_doc.to_dict()
-            else:
-                logger.warning(f"User subscription not found: {user_id}")
-                return None
+            subscriptions = {}
+            for doc in docs:
+                subscription_data = doc.to_dict()
+                subscriptions[doc.id] = subscription_data
+            
+            logger.info(f"Retrieved {len(subscriptions)} user subscriptions")
+            return subscriptions
                 
         except Exception as e:
-            logger.error(f"Failed to retrieve user subscription {user_id}: {str(e)}")
+            logger.error(f"Failed to retrieve user subscriptions: {str(e)}")
             return None
