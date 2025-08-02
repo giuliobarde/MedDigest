@@ -49,7 +49,8 @@ def send_bulk_emails(recipients, subject, body):
         'failed': []
     }
     
-    for email in recipients:
+    for recipient in recipients:
+        email = recipient['email']
         result = send_newsletter_email(email, subject, body)
         if result:
             results['successful'].append(email)
