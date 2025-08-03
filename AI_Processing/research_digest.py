@@ -731,8 +731,8 @@ class ResearchDigest:
         # Print highest rated papers per specialty
         self._print_highest_rated_papers_per_specialty()
 
-        # Generate the digest
-        digest = {
+        # Generate the full digest for local use
+        full_digest = {
             "executive_summary": self._generate_executive_summary(),
             "key_discoveries": self._generate_key_discoveries(),
             "emerging_trends": self._generate_emerging_trends(),
@@ -744,16 +744,46 @@ class ResearchDigest:
             "high_interest_papers": self.get_high_interest_papers_summary()
         }
         
-        # Add missing required fields
-        digest["date_generated"] = datetime.datetime.now().strftime("%Y-%m-%d")
+        # Add required fields
+        full_digest["date_generated"] = datetime.datetime.now().strftime("%Y-%m-%d")
         
         # Calculate total papers from specialty data
         total_papers = sum(len(data["papers"]) for data in self.specialty_data.values())
-        digest["total_papers"] = total_papers
+        full_digest["total_papers"] = total_papers
 
-        # Always store the digest in Firebase when available
+        # Store only newsletter-essential fields in Firebase
         if self.firebase_available and self.firebase_client:
             try:
+                # Create a minimal digest with only fields needed for newsletter generation
+                newsletter_digest = {
+                    "executive_summary": full_digest["executive_summary"],
+                    "key_discoveries": full_digest["key_discoveries"],
+                    "emerging_trends": full_digest["emerging_trends"],
+                    "cross_specialty_insights": full_digest["cross_specialty_insights"],
+                    "clinical_implications": full_digest["clinical_implications"],
+                    "research_gaps": full_digest["research_gaps"],
+                    "future_directions": full_digest["future_directions"],
+                    "date_generated": full_digest["date_generated"],
+                    "total_papers": full_digest["total_papers"]
+                }
+                
+                # Add specialty data for newsletter paper organization
+                # Only include essential paper info to reduce storage size
+                newsletter_specialty_data = {}
+                for specialty, data in self.specialty_data.items():
+                    newsletter_specialty_data[specialty] = {
+                        "papers": [
+                            {
+                                "id": paper["id"],
+                                "title": paper["title"],
+                                "authors": paper["authors"],
+                                "specialty": specialty
+                            }
+                            for paper in data["papers"]
+                        ]
+                    }
+                newsletter_digest["specialty_data"] = newsletter_specialty_data
+                
                 # Clean the data for Firebase storage
                 def clean_value(value):
                     if isinstance(value, (str, int, float, bool, type(None))):
@@ -767,23 +797,24 @@ class ResearchDigest:
                     else:
                         return str(value)
                 
-                # Clean the digest data
-                cleaned_digest = clean_value(digest)
+                # Clean the newsletter digest data
+                cleaned_newsletter_digest = clean_value(newsletter_digest)
                 
-                # Prepare storage format
+                # Prepare storage format with only newsletter-essential fields
                 digest_data = {
                     "id": str(self.id),
                     "date_generated": datetime.datetime.now().isoformat(),
                     "total_papers": total_papers,
-                    "digest_summary": cleaned_digest
+                    "digest_summary": cleaned_newsletter_digest
                 }
                 
-                logger.info(f"Attempting to store digest with ID: {self.id}")
+                logger.info(f"Attempting to store newsletter-optimized digest with ID: {self.id}")
                 logger.info(f"Digest data keys: {list(digest_data.keys())}")
+                logger.info(f"Newsletter digest fields: {list(cleaned_newsletter_digest.keys())}")
                 
                 success = self.firebase_client.store_digest(digest_data, self.id)
                 if success:
-                    logger.info(f"Digest stored in Firebase with ID: {self.id}")
+                    logger.info(f"Newsletter-optimized digest stored in Firebase with ID: {self.id}")
                 else:
                     logger.error("Failed to store digest in Firebase")
             except Exception as e:
@@ -793,4 +824,4 @@ class ResearchDigest:
         else:
             logger.warning("Firebase not available, skipping storage of digest.")
 
-        return digest
+        return full_digest
