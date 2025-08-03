@@ -70,8 +70,12 @@ def get_newsletter():
             response_data['emerging_trends'] = '. '.join(analysis.get('major_trends', [])) + '.'
             response_data['cross_specialty_insights'] = analysis.get('cross_specialty_insights', '')
             response_data['clinical_implications'] = analysis.get('medical_impact', '')
-            response_data['research_gaps'] = analysis.get('research_gaps', 'Research gaps analysis is being processed.')
-            response_data['future_directions'] = analysis.get('future_directions', 'Future directions analysis is being processed.')
+            response_data['research_gaps'] = analysis.get('research_gaps', '')
+            response_data['future_directions'] = analysis.get('future_directions', '')
+    
+    elif 'digest_summary' in digest_data and digest_data['digest_summary']:
+        summary_data = digest_data['digest_summary']
+        response_data.update(summary_data)
     
     return response_data
 
