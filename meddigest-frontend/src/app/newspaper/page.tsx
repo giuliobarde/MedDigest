@@ -284,6 +284,30 @@ export default function Newspaper() {
           </div>
         </NewsletterSection>
 
+        <NewsletterSection 
+          title="Research Gaps" 
+          icon="🔍"
+          fallback="Analysis of current research gaps and areas requiring further investigation."
+        >
+          <div className="prose prose-gray max-w-none">
+            <p className="text-gray-700 leading-relaxed text-lg">
+              {newsletterData.research_gaps}
+            </p>
+          </div>
+        </NewsletterSection>
+
+        <NewsletterSection 
+          title="Future Directions" 
+          icon="🚀"
+          fallback="Emerging directions and potential future developments in medical research."
+        >
+          <div className="prose prose-gray max-w-none">
+            <p className="text-gray-700 leading-relaxed text-lg">
+              {newsletterData.future_directions}
+            </p>
+          </div>
+        </NewsletterSection>
+
         <NewsletterSection title="Research Categories" icon="📊">
           {newsletterData.specialty_data && (
             <ResearchCategories specialtyData={newsletterData.specialty_data} />
