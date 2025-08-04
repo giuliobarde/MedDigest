@@ -12,9 +12,14 @@ from Firebase.firebase_client import FirebaseClient
 
 app = FastAPI()
 
+# Updated CORS settings to allow the deployed frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://med-digest-osln.vercel.app"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://med-digest-osln.vercel.app",
+        "https://med-digest-osln.vercel.app/"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -36,8 +41,8 @@ class UserSignup(BaseModel):
     medical_interests: list[str]
 
 @app.get("/")
-def read_root():
-    return {"message": "MedDigest API is running"}
+def health_check():
+    return {"status": "healthy", "service": "MedDigest API"}
 
 @app.get("/api/newsletter")
 def get_newsletter():
@@ -110,4 +115,5 @@ def simple_signup(signup: UserSignup):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, port=8000) 
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port) 
