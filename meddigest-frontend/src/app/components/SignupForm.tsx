@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { getApiUrl } from '../../config/api';
 
 const INTERESTS = [
   "Cardiology", "Oncology", "Neurology", "Psychiatry", "Pediatrics", "Internal Medicine",
@@ -170,7 +171,7 @@ export default function SignupForm() {
     e.preventDefault();
     
     try {
-      const response = await fetch('http://localhost:8000/api/signup', {
+      const response = await fetch(getApiUrl('signup'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

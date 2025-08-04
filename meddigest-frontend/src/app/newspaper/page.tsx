@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import NavTabs from '../nav_tabs';
 import Image from "next/image";
+import { getApiUrl } from '../../config/api';
 
 interface Paper {
   id: string;
@@ -193,7 +194,7 @@ export default function Newspaper() {
   useEffect(() => {
     const fetchNewsletter = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/newsletter');
+        const response = await fetch(getApiUrl('newsletter'));
         if (!response.ok) {
           throw new Error('Failed to fetch newsletter data');
         }
