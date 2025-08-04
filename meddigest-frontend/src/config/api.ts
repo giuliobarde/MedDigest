@@ -2,12 +2,11 @@
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 
-// API Base URL - use localhost for development, deployed URL for production
-export const API_BASE_URL = isDevelopment 
-  ? 'http://localhost:8000' 
-  : 'https://med-digest-giuliobarde-giulio-bardellis-projects.vercel.app';
+// API Base URL - use environment variable or stable domain
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 
+  (isDevelopment ? 'http://localhost:8000' : 'https://med-digest-nine.vercel.app');
 
-// API Endpoints - these are backend API routes, not frontend pages
+// API Endpoints
 export const API_ENDPOINTS = {
   newsletter: `${API_BASE_URL}/api/newsletter`,
   signup: `${API_BASE_URL}/api/signup`,
@@ -16,4 +15,9 @@ export const API_ENDPOINTS = {
 // Helper function to get API URL
 export const getApiUrl = (endpoint: keyof typeof API_ENDPOINTS): string => {
   return API_ENDPOINTS[endpoint];
-}; 
+};
+
+// Log the API URL for debugging (only in development)
+if (isDevelopment) {
+  console.log('API Base URL:', API_BASE_URL);
+} 
