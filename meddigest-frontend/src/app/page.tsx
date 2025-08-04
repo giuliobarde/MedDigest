@@ -190,7 +190,7 @@ export default function Home() {
           </div>
           <div className="max-w-4xl mx-auto">
             <p className="text-lg text-gray-600 leading-relaxed mb-12">
-              We automatically analyze medical research papers from arXiv's repositories, 
+              We automatically analyze medical research papers from arXiv&apos;s repositories, 
               extracting key findings and trends to help healthcare professionals stay current 
               with the latest developments. Our AI-powered platform transforms complex research 
               into actionable insights, saving you hours of manual review while ensuring you 
