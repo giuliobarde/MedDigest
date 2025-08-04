@@ -8,6 +8,7 @@ If no newsletter content is provided, it will fetch the latest from the database
 """
 
 import logging
+import sys
 from typing import Any, Dict, Optional
 from datetime import datetime
 from dotenv import load_dotenv
@@ -19,7 +20,19 @@ load_dotenv()
 from Email_System.send_email import send_bulk_emails
 from Firebase.firebase_client import FirebaseClient
 from Firebase.firebase_config import FirebaseConfig
-from Output_Generation.newsletter import Newsletter
+from Output_Generation.newsletter_markdown import NewsletterMarkdown
+
+
+def setup_logging() -> logging.Logger:
+    """Configure and return a logger instance."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+        ]
+    )
+    return logging.getLogger(__name__)
 
 
 logger = logging.getLogger(__name__)
@@ -106,7 +119,7 @@ def get_latest_newsletter_from_db(firebase_client: FirebaseClient) -> Optional[s
         mock_digest = MockDigest(formatted_data)
         
         # Generate newsletter using the existing Newsletter class
-        newsletter = Newsletter(mock_digest)
+        newsletter = NewsletterMarkdown(mock_digest)
         newsletter_content = newsletter.generate_newsletter()
         
         if newsletter_content:
@@ -163,7 +176,7 @@ def send_newsletter_email_safely(newsletter_content: str, user_subscriptions: Di
         
         newsletter_date = datetime.now().strftime("%Y-%m-%d")
         subject = f"MedDigest Newsletter - {newsletter_date}"
-        result = send_bulk_emails(recipients, subject, newsletter_content)
+        result = send_bulk_emails(recipients, subject, newsletter_content, is_markdown=True)
         
         if result and result.get('successful'):
             logger.info("✅ Newsletter email sent successfully!")

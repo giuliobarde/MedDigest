@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 
 # Local application imports
 from AI_Processing.research_digest import ResearchDigest
-from Output_Generation.newsletter import Newsletter
+from Output_Generation.newsletter_markdown import NewsletterMarkdown
 
 # Setup logger at module level
 logger = logging.getLogger(__name__)
@@ -87,7 +87,7 @@ def generate_newsletter(digest: ResearchDigest) -> Optional[str]:
         Newsletter content if successful, None otherwise
     """
     try:
-        newsletter = Newsletter(digest)
+        newsletter = NewsletterMarkdown(digest)
         return newsletter.generate_newsletter()
     except Exception as e:
         logger.error(f"Failed to generate newsletter: {e}")
