@@ -4,7 +4,7 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 
 // API Base URL - use environment variable or stable domain
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 
-  (isDevelopment ? 'http://localhost:8000' : 'https://med-digest-nine.vercel.app');
+  (isDevelopment ? 'http://localhost:8000' : 'https://med-digest-1bcyv1xgo-giulio-bardellis-projects.vercel.app');
 
 // API Endpoints
 export const API_ENDPOINTS = {
