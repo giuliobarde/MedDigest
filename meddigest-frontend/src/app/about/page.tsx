@@ -195,7 +195,7 @@ export default function About() {
             </p>
             <p className="text-lg text-gray-600 leading-relaxed mb-6">
               We recognized that while the research is valuable, the traditional approach of manually reading through papers is inefficient and often leads to 
-              missed opportunities. People need a way to quickly identify and understand the most relevant research, whether they're healthcare professionals, 
+              missed opportunities. People need a way to quickly identify and understand the most relevant research, whether they&apos;re healthcare professionals, 
               researchers, or simply interested in medical breakthroughs.
             </p>
             <p className="text-lg text-gray-600 leading-relaxed">
@@ -252,7 +252,7 @@ export default function About() {
             
             <div className="text-center mt-12 pt-8 border-t border-gray-100">
               <p className="text-lg text-gray-600 leading-relaxed max-w-3xl mx-auto">
-                Together, we're passionate about leveraging technology to democratize access to medical research and make scientific discoveries more accessible to everyone worldwide.
+                Together, we&apos;re passionate about leveraging technology to democratize access to medical research and make scientific discoveries more accessible to everyone worldwide.
               </p>
             </div>
           </div>

@@ -178,7 +178,7 @@ function ErrorState({ error }: { error: string }) {
         <div className="text-sm text-gray-600 bg-gray-50 rounded-lg p-4">
           Make sure:
           <br />1. Python API server is running (python api.py)
-          <br />2. You've run the Python script to generate the newsletter first (python main.py)
+          <br />2. You&apos;ve run the Python script to generate the newsletter first (python main.py)
         </div>
       </div>
     </div>
