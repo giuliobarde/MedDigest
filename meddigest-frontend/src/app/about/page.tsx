@@ -183,10 +183,10 @@ const TEAM_MEMBERS = [
     image: "/team/giulio-bardelli.jpg"
   },
   {
-    name: "[Name]",
+    name: "Andriy Demyanyuk",
     role: "Co-Founder & Developer", 
-    description: "[Add background here.]",
-    image: "/team/placeholder.jpg"
+    description: "Andriy is a software engineer with an interest in the intersection of healthcare and technology. He is an undergraduate student at the University of Washington, where he studies Computer Science and Medical Anthropology. He is currently working at TechX as a software engineer intern.",
+    image: "/team/andriy-demyanyuk.jpg"
   }
 ];
 
@@ -218,6 +218,19 @@ export default function About() {
             </p>
           </div>
         </SectionCard>
+        </section>
+
+        {/* Full-page image strip */}
+        <section className="mb-24">
+          <div className="relative w-full h-96 md:h-[500px] rounded-2xl overflow-hidden shadow-lg bg-blue-50">
+            <Image 
+              src="/images/gpt-generated.png" 
+              alt="AI-powered medical research analysis" 
+              fill
+              className="object-cover"
+              priority
+            />
+          </div>
         </section>
 
         <section className="mb-24">
