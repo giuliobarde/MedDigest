@@ -15,7 +15,7 @@ function AboutBanner() {
       <div className="max-w-5xl mx-auto px-6">
         <div className="absolute left-6 top-6 z-20">
           <Image 
-            src="/meddigest-logo.png" 
+            src="/images/meddigest-logo.png" 
             alt="MedDigest Logo" 
             width={100} 
             height={100}
@@ -75,8 +75,8 @@ function RelevanceCard({
   description: string[]; 
 }) {
   return (
-    <div className="p-6 bg-gray-50 rounded-xl border border-gray-100">
-      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
+    <div className="p-6 bg-gray-50 rounded-xl border border-gray-100 text-center md:text-left">
+      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mb-4 mx-auto md:mx-0">
         {icon}
       </div>
       <h3 className="text-2xl font-semibold text-gray-900 mb-6">{title}</h3>
@@ -92,18 +92,30 @@ function RelevanceCard({
 function TeamMember({ 
   name, 
   role, 
-  description 
+  description,
+  image 
 }: { 
   name: string; 
   role: string; 
-  description: string; 
+  description: string;
+  image?: string;
 }) {
   return (
     <div className="text-center p-8 bg-gray-50 rounded-xl border border-gray-100">
-      <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
-        <svg className="w-12 h-12 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-        </svg>
+      <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6 overflow-hidden">
+        {image ? (
+          <Image 
+            src={image} 
+            alt={`${name} profile`}
+            width={96}
+            height={96}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <svg className="w-12 h-12 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+        )}
       </div>
       <h3 className="text-2xl font-semibold text-gray-900 mb-2">{name}</h3>
       <p className="text-blue-600 font-semibold mb-4">{role}</p>
@@ -165,14 +177,16 @@ const RELEVANCE_CARDS = [
 
 const TEAM_MEMBERS = [
   {
-    name: "[Name]",
+    name: "Giulio Bardelli",
     role: "Co-Founder & Developer",
-    description: "[Add background here.]"
+    description: "Giulio is a software engineer with a passion for building AI powered applications. He is a graduate student at St. John's University, where he studies Data Science. He is currently working as a software engineer intern at a TechX.",
+    image: "/team/giulio-bardelli.jpg"
   },
   {
     name: "[Name]",
     role: "Co-Founder & Developer", 
-    description: "[Add background here.]"
+    description: "[Add background here.]",
+    image: "/team/placeholder.jpg"
   }
 ];
 
@@ -188,17 +202,17 @@ export default function About() {
             title="The Idea Behind MedDigest"
           >
           <div className="max-w-4xl mx-auto">
-            <p className="text-lg text-gray-600 leading-relaxed mb-6">
+            <p className="text-lg text-gray-600 leading-relaxed mb-6 text-center md:text-left">
               MedDigest was born from a simple observation: the volume of medical research being published daily is overwhelming for everyone - from healthcare professionals 
               to researchers to curious individuals. With thousands of new papers appearing in repositories like arXiv every week, staying current with the latest developments 
               has become an impossible task.
             </p>
-            <p className="text-lg text-gray-600 leading-relaxed mb-6">
+            <p className="text-lg text-gray-600 leading-relaxed mb-6 text-center md:text-left">
               We recognized that while the research is valuable, the traditional approach of manually reading through papers is inefficient and often leads to 
               missed opportunities. People need a way to quickly identify and understand the most relevant research, whether they&apos;re healthcare professionals, 
               researchers, or simply interested in medical breakthroughs.
             </p>
-            <p className="text-lg text-gray-600 leading-relaxed">
+            <p className="text-lg text-gray-600 leading-relaxed text-center md:text-left">
               Our solution leverages artificial intelligence to automatically analyze, summarize, and curate medical research, transforming complex academic papers 
               into accessible insights that anyone can understand and benefit from.
             </p>
@@ -246,6 +260,7 @@ export default function About() {
                   name={member.name}
                   role={member.role}
                   description={member.description}
+                  image={member.image}
                 />
               ))}
             </div>
