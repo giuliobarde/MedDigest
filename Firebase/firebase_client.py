@@ -38,7 +38,7 @@ class FirebaseClient:
         self.config = config
         self.db = None
         self._initialize_firebase()
-    
+
     def _initialize_firebase(self) -> None:
         """
         Initialize Firebase Admin SDK and Firestore connection.
@@ -49,8 +49,16 @@ class FirebaseClient:
         try:
             # Check if Firebase app is already initialized
             if not firebase_admin._apps:
-                if self.config.service_account_path:
-                    # Use service account credentials
+                service_account_dict = self.config.get_service_account_dict()
+                
+                if service_account_dict:
+                    # Use service account credentials from JSON
+                    cred = credentials.Certificate(service_account_dict)
+                    firebase_admin.initialize_app(cred, {
+                        'projectId': self.config.project_id
+                    })
+                elif self.config.service_account_path:
+                    # Use service account file path (for local development)
                     cred = credentials.Certificate(self.config.service_account_path)
                     firebase_admin.initialize_app(cred, {
                         'projectId': self.config.project_id
@@ -68,7 +76,7 @@ class FirebaseClient:
         except Exception as e:
             logger.error(f"Unexpected error initializing Firebase: {str(e)}")
             raise
-    
+
     def store_digest(self, digest_data: Dict[str, Any], digest_id: str) -> bool:
         """
         Store a research digest in Firestore.
@@ -88,20 +96,26 @@ class FirebaseClient:
         except Exception as e:
             logger.error(f"Failed to store research digest: {str(e)}")
             return False
-        
-    def store_user_subscription(self, user_id: str, subscription_data: Dict[str, Any]) -> bool:
-        """
-        Store a user subscription in Firestore.
-        """
+
+    def store_user_signup(self, email: str, first_name: str, last_name: str, medical_interests: List[str]) -> bool:
+        """Simple method to store user signup data."""
         try:
-            subscription_ref = self.db.collection('user_signups').document(user_id)
-            subscription_ref.set(subscription_data)
-            logger.info(f"Stored user subscription: {user_id}")
+            user_data = {
+                'email': email.lower().strip(),
+                'first_name': first_name.strip(),
+                'last_name': last_name.strip(),
+                'medical_interests': medical_interests,
+                'signed_up_at': datetime.datetime.utcnow()
+            }
+            
+            self.db.collection('user_signups').document(email.lower().strip()).set(user_data)
+            logger.info(f"Stored user signup: {email}")
             return True
+            
         except Exception as e:
-            logger.error(f"Failed to store user subscription: {str(e)}")
+            logger.error(f"Failed to store signup: {str(e)}")
             return False
-        
+ 
     def store_paper_analysis(self, paper_id: str, analysis: Dict[str, Any]) -> bool:
         """
         Store a paper analysis in Firestore.
@@ -150,7 +164,7 @@ class FirebaseClient:
         except Exception as e:
             logger.error(f"Failed to retrieve paper analysis {paper_id}: {str(e)}")
             return None
-    
+
     def get_analyses_by_specialty(self, specialty: str, limit: int = 100) -> List[Dict[str, Any]]:
         """
         Retrieve paper analyses filtered by specialty.
@@ -179,7 +193,7 @@ class FirebaseClient:
         except Exception as e:
             logger.error(f"Failed to retrieve analyses for specialty {specialty}: {str(e)}")
             return []
-    
+
     def get_high_interest_analyses(self, min_score: float = 7.0, limit: int = 100) -> List[Dict[str, Any]]:
         """
         Retrieve paper analyses with high interest scores.
@@ -208,7 +222,7 @@ class FirebaseClient:
         except Exception as e:
             logger.error(f"Failed to retrieve high-interest analyses: {str(e)}")
             return []
-    
+
     def get_digest(self, digest_id: str) -> Optional[Dict[str, Any]]:
         """
         Retrieve a research digest from Firestore.
@@ -254,25 +268,6 @@ class FirebaseClient:
         except Exception as e:
             logger.error(f"Failed to retrieve latest digest: {str(e)}")
             return None
-
-    def store_user_signup(self, email: str, first_name: str, last_name: str, medical_interests: List[str]) -> bool:
-        """Simple method to store user signup data."""
-        try:
-            user_data = {
-                'email': email.lower().strip(),
-                'first_name': first_name.strip(),
-                'last_name': last_name.strip(),
-                'medical_interests': medical_interests,
-                'signed_up_at': datetime.datetime.utcnow()
-            }
-            
-            self.db.collection('user_signups').document(email.lower().strip()).set(user_data)
-            logger.info(f"Stored user signup: {email}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Failed to store signup: {str(e)}")
-            return False
 
     def get_all_user_subscriptions(self) -> Optional[Dict[str, Any]]:
         """
