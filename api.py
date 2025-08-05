@@ -79,7 +79,12 @@ def get_newsletter():
                 
                 response_data['executive_summary'] = analysis.get('batch_summary', '')
                 response_data['key_discoveries'] = analysis.get('significant_findings', [])
-                response_data['emerging_trends'] = '. '.join(analysis.get('major_trends', [])) + '.'
+                # Preserve line breaks in emerging trends instead of joining with periods
+                emerging_trends = analysis.get('major_trends', [])
+                if isinstance(emerging_trends, list):
+                    response_data['emerging_trends'] = '\n\n'.join(emerging_trends)
+                else:
+                    response_data['emerging_trends'] = emerging_trends
                 response_data['cross_specialty_insights'] = analysis.get('cross_specialty_insights', '')
                 response_data['clinical_implications'] = analysis.get('medical_impact', '')
                 response_data['research_gaps'] = analysis.get('research_gaps', '')
