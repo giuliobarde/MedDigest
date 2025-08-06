@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Local application imports
-from Email_System.send_email import send_bulk_emails
+from Email_System.send_email import send_email_to_user
 from Firebase.firebase_client import FirebaseClient
 from Firebase.firebase_config import FirebaseConfig
 from Output_Generation.newsletter_markdown import NewsletterMarkdown
@@ -176,9 +176,10 @@ def send_newsletter_email_safely(newsletter_content: str, user_subscriptions: Di
         
         newsletter_date = datetime.now().strftime("%Y-%m-%d")
         subject = f"MedDigest Newsletter - {newsletter_date}"
-        result = send_bulk_emails(recipients, subject, newsletter_content, is_markdown=True)
+        result = send_email_to_user(subject, newsletter_content, is_markdown=True)
         
-        if result and result.get('successful'):
+        # send_email_to_user returns Gmail API response or None
+        if result:
             logger.info("✅ Newsletter email sent successfully!")
             return True
         else:
