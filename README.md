@@ -134,9 +134,7 @@ Create a `.env` file with:
 GROQ_API_KEY=your_groq_api_key_here
 FIREBASE_PROJECT_ID=your_firebase_project_id
 FIREBASE_SERVICE_ACCOUNT_PATH=path/to/serviceAccountKey.json
-GMAIL_CLIENT_ID=your_gmail_client_id
-GMAIL_CLIENT_SECRET=your_gmail_client_secret
-GMAIL_REFRESH_TOKEN=your_gmail_refresh_token
+GOOGLE_APPLICATION_CREDENTIALS=your_google_credentials_json
 ```
 
 4. **Set up Firebase**:
