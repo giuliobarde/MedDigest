@@ -96,16 +96,33 @@ def send_email_to_user(subject, body, is_markdown=False):
         print(f"Error getting paper focus: {e}")
         interest = "🔬 **Latest Medical Research**: Stay updated with cutting-edge developments in your fields of interest."
     
-    # Create a personalized email body
-    personalized_body = f"""
-Dear {user['first_name']} {user['last_name']},
+    # Create a personalized email body with proper markdown formatting
+    personalized_body = f"""# MedDigest Weekly Research Newsletter
+
+Dear **{user['first_name']} {user['last_name']}**,
+
+---
+
+## 🎯 Featured Research Focus
 
 {interest}
 
+---
+
+## 📊 Your Medical Interests
+**Specialties**: {user['medical_interests']}  
+
+---
+
 {body}
 
-Best regards,
-The MedDigest Team
+---
+
+*Best regards,*  
+**The MedDigest Team**
+
+---
+*This newsletter is personalized based on your medical interests and the latest high-impact research in your fields.*
 """
     
-    return send_newsletter_email(user['email'], subject, personalized_body, is_markdown)
+    return send_newsletter_email(user['email'], subject, personalized_body, is_markdown=True)
