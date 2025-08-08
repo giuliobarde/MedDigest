@@ -97,7 +97,7 @@ class FirebaseClient:
             logger.error(f"Failed to store research digest: {str(e)}")
             return False
 
-    def store_user_signup(self, email: str, first_name: str, last_name: str, medical_interests: List[str]) -> bool:
+    def store_user_signup(self, email: str, first_name: str, last_name: str, medical_interests: List[str], reading_time: str) -> bool:
         """Simple method to store user signup data."""
         try:
             user_data = {
@@ -105,6 +105,7 @@ class FirebaseClient:
                 'first_name': first_name.strip(),
                 'last_name': last_name.strip(),
                 'medical_interests': medical_interests,
+                'reading_time': reading_time,
                 'signed_up_at': datetime.datetime.utcnow()
             }
             

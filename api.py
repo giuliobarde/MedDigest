@@ -39,6 +39,7 @@ class UserSignup(BaseModel):
     first_name: str
     last_name: str
     medical_interests: list[str]
+    reading_time: str
 
 @app.get("/")
 def health_check():
@@ -108,7 +109,8 @@ def simple_signup(signup: UserSignup):
             email=signup.email,
             first_name=signup.first_name,
             last_name=signup.last_name,
-            medical_interests=signup.medical_interests
+            medical_interests=signup.medical_interests,
+            reading_time=signup.reading_time
         )
         
         if success:
