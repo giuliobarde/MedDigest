@@ -18,11 +18,18 @@ const INTERESTS = [
   "Surgical Oncology", "Gynecologic Oncology", "Pediatric Oncology", "Hematologic Oncology"
 ];
 
+const READING_TIMES = [
+  { value: "5", label: "5 min read" },
+  { value: "15", label: "15 min read" },
+  { value: "30", label: "30 min read" }
+];
+
 interface FormData {
   firstName: string;
   lastName: string;
   email: string;
   medicalInterests: string[];
+  readingTime: string;
 }
 
 function InterestDropdown({ 
@@ -133,6 +140,64 @@ function SelectedInterests({ interests, onRemove }: { interests: string[]; onRem
   );
 }
 
+function ReadingTimeDropdown({ 
+  readingTimes, 
+  selectedReadingTime, 
+  onSelectReadingTime, 
+  isOpen, 
+  onToggle 
+}: {
+  readingTimes: { value: string; label: string }[];
+  selectedReadingTime: string;
+  onSelectReadingTime: (value: string) => void;
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  const selectedOption = readingTimes.find(option => option.value === selectedReadingTime);
+
+  return (
+    <div className="relative">
+      <label className="block mb-2 font-medium text-gray-900">Reading Time Preference:</label>
+      
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full p-3 border rounded-lg text-gray-900 bg-white text-left flex justify-between items-center"
+      >
+        <span>
+          {selectedOption ? selectedOption.label : 'Select reading time'}
+        </span>
+        <span className={`transform transition-transform ${isOpen ? 'rotate-180' : ''}`}>
+          ▼
+        </span>
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg">
+          <div className="p-2">
+            {readingTimes.map(option => (
+              <label
+                key={option.value}
+                className="flex items-center p-2 hover:bg-gray-50 cursor-pointer rounded"
+              >
+                <input
+                  type="radio"
+                  name="readingTime"
+                  value={option.value}
+                  checked={selectedReadingTime === option.value}
+                  onChange={() => onSelectReadingTime(option.value)}
+                  className="mr-3"
+                />
+                <span className="text-gray-900">{option.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MessageDisplay({ message }: { message: string }) {
   if (!message) return null;
 
@@ -149,17 +214,23 @@ export default function SignupForm() {
     firstName: '',
     lastName: '',
     email: '',
-    medicalInterests: []
+    medicalInterests: [],
+    readingTime: '5' // Default to 5 min
   });
   const [message, setMessage] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isReadingTimeDropdownOpen, setIsReadingTimeDropdownOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const readingTimeDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsDropdownOpen(false);
+      }
+      if (readingTimeDropdownRef.current && !readingTimeDropdownRef.current.contains(event.target as Node)) {
+        setIsReadingTimeDropdownOpen(false);
       }
     };
 
@@ -178,7 +249,8 @@ export default function SignupForm() {
           email: formData.email,
           first_name: formData.firstName,
           last_name: formData.lastName,
-          medical_interests: formData.medicalInterests
+          medical_interests: formData.medicalInterests,
+          reading_time: formData.readingTime
         }),
       });
 
@@ -186,7 +258,7 @@ export default function SignupForm() {
       setMessage(data.message);
       
       if (data.success) {
-        setFormData({ firstName: '', lastName: '', email: '', medicalInterests: [] });
+        setFormData({ firstName: '', lastName: '', email: '', medicalInterests: [], readingTime: '5' });
       }
     } catch {
       setMessage('Failed to submit form. Please try again.');
@@ -207,6 +279,10 @@ export default function SignupForm() {
     if (!isDropdownOpen) {
       setSearchTerm('');
     }
+  };
+
+  const toggleReadingTimeDropdown = () => {
+    setIsReadingTimeDropdownOpen(!isReadingTimeDropdownOpen);
   };
 
   const updateField = (field: keyof FormData, value: string) => {
@@ -256,6 +332,16 @@ export default function SignupForm() {
         <SelectedInterests 
           interests={formData.medicalInterests} 
           onRemove={toggleInterest} 
+        />
+      </div>
+      
+      <div ref={readingTimeDropdownRef}>
+        <ReadingTimeDropdown
+          readingTimes={READING_TIMES}
+          selectedReadingTime={formData.readingTime}
+          onSelectReadingTime={(value) => updateField('readingTime', value)}
+          isOpen={isReadingTimeDropdownOpen}
+          onToggle={toggleReadingTimeDropdown}
         />
       </div>
       

@@ -97,7 +97,7 @@ class FirebaseClient:
             logger.error(f"Failed to store research digest: {str(e)}")
             return False
 
-    def store_user_signup(self, email: str, first_name: str, last_name: str, medical_interests: List[str]) -> bool:
+    def store_user_signup(self, email: str, first_name: str, last_name: str, medical_interests: List[str], reading_time: str) -> bool:
         """Simple method to store user signup data."""
         try:
             user_data = {
@@ -105,6 +105,7 @@ class FirebaseClient:
                 'first_name': first_name.strip(),
                 'last_name': last_name.strip(),
                 'medical_interests': medical_interests,
+                'reading_time': reading_time,
                 'signed_up_at': datetime.datetime.utcnow()
             }
             
@@ -288,3 +289,41 @@ class FirebaseClient:
         except Exception as e:
             logger.error(f"Failed to retrieve user subscriptions: {str(e)}")
             return None
+
+    def get_highest_rated_paper_focus(self, user_interests: str) -> str:
+        """
+        Get the focus field of the highest rated paper in the user's medical interests.
+        
+        Args:
+            user_interests (str): Comma-separated list of user's medical interests
+            
+        Returns:
+            str: Focus field of the highest rated paper, or a default message if none found
+        """
+        try:
+            # Parse user interests
+            interests = [interest.strip() for interest in user_interests.split(',')]
+            
+            # Get papers for each interest and find the highest rated one
+            highest_rated_paper = None
+            highest_score = 0.0
+            
+            for interest in interests:
+                # Get analyses for this specialty
+                analyses = self.get_analyses_by_specialty(interest, limit=50)
+                
+                # Find the highest rated paper in this specialty
+                for analysis in analyses:
+                    score = analysis.get('interest_score', 0.0)
+                    if score > highest_score:
+                        highest_score = score
+                        highest_rated_paper = analysis
+            
+            if highest_rated_paper and highest_rated_paper.get('focus'):
+                return f"🎯 **Featured Research Focus**: {highest_rated_paper['focus']}"
+            else:
+                return "🔬 **Latest Medical Research**: Stay updated with cutting-edge developments in your fields of interest."
+                
+        except Exception as e:
+            logger.error(f"Error getting highest rated paper focus: {e}")
+            return "🔬 **Latest Medical Research**: Stay updated with cutting-edge developments in your fields of interest."

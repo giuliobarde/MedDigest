@@ -5,6 +5,8 @@ Uses the existing email configuration to send emails via Gmail API.
 """
 
 from .email_config import gmail_send_message
+from Firebase.firebase_client import FirebaseClient
+from Firebase.firebase_config import FirebaseConfig
 
 
 def send_newsletter_email(to_email, subject, body, is_markdown=False):
@@ -64,3 +66,63 @@ def send_bulk_emails(recipients, subject, body, is_markdown=False):
     print(f"❌ Failed: {len(results['failed'])}")
     
     return results 
+
+
+def send_email_to_user(subject, body, is_markdown=False):
+    """
+    Send an email to a specific hardcoded user for testing purposes.
+    Customizes the email content with user's personal information and highest rated paper focus.
+    """
+    user = {
+        "email": "giuliobarde@gmail.com",
+        "first_name": "Giulio",
+        "last_name": "Bardelli",
+        "medical_interests": "Cardiology",
+        "signed_up_at": {
+            "date": "2025-01-01",
+            "time": "12:00:00"
+        }
+    }
+    
+    # Get the highest rated paper's focus for user's interests
+    try:
+        # Initialize Firebase client
+        firebase_config = FirebaseConfig.from_env()
+        firebase_client = FirebaseClient(firebase_config)
+        
+        # Convert list to comma-separated string for the method
+        interest = firebase_client.get_highest_rated_paper_focus(user['medical_interests'])
+    except Exception as e:
+        print(f"Error getting paper focus: {e}")
+        interest = "🔬 **Latest Medical Research**: Stay updated with cutting-edge developments in your fields of interest."
+    
+    # Create a personalized email body with proper markdown formatting
+    personalized_body = f"""# MedDigest Weekly Research Newsletter
+
+Dear **{user['first_name']} {user['last_name']}**,
+
+---
+
+## 🎯 Featured Research Focus
+
+{interest}
+
+---
+
+## 📊 Your Medical Interests
+**Specialties**: {user['medical_interests']}  
+
+---
+
+{body}
+
+---
+
+*Best regards,*  
+**The MedDigest Team**
+
+---
+*This newsletter is personalized based on your medical interests and the latest high-impact research in your fields.*
+"""
+    
+    return send_newsletter_email(user['email'], subject, personalized_body, is_markdown=True)
