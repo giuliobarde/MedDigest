@@ -77,24 +77,37 @@ def send_email_to_user(subject, body, is_markdown=False):
         "email": "giuliobarde@gmail.com",
         "first_name": "Giulio",
         "last_name": "Bardelli",
-        "medical_interests": "Cardiology",
+        "medical_interests": ["Cardiology", "Radiology", "Oncology"],
         "signed_up_at": {
             "date": "2025-01-01",
             "time": "12:00:00"
         }
     }
     
-    # Get the highest rated paper's focus for user's interests
+    # Get the highest rated paper's focus for each user's interest
     try:
         # Initialize Firebase client
         firebase_config = FirebaseConfig.from_env()
         firebase_client = FirebaseClient(firebase_config)
         
-        # Convert list to comma-separated string for the method
-        interest = firebase_client.get_highest_rated_paper_focus(user['medical_interests'])
+        # Get focus for each individual interest
+        interest_focuses = firebase_client.get_highest_rated_paper_focus_per_interest(user['medical_interests'])
     except Exception as e:
         print(f"Error getting paper focus: {e}")
-        interest = "🔬 **Latest Medical Research**: Stay updated with cutting-edge developments in your fields of interest."
+        # Fallback to default messages for each interest
+        interest_focuses = {
+            interest: f"🔬 **{interest}**: Stay updated with cutting-edge developments in {interest}."
+            for interest in user['medical_interests']
+        }
+    
+    # Create personalized paragraphs for each interest
+    interest_paragraphs = []
+    for interest in user['medical_interests']:
+        focus = interest_focuses.get(interest, f"🔬 **{interest}**: Stay updated with cutting-edge developments in {interest}.")
+        interest_paragraphs.append(focus)
+    
+    # Join all interest paragraphs
+    interests_content = "\n\n".join(interest_paragraphs)
     
     # Create a personalized email body with proper markdown formatting
     personalized_body = f"""# MedDigest Weekly Research Newsletter
@@ -103,14 +116,14 @@ Dear **{user['first_name']} {user['last_name']}**,
 
 ---
 
-## 🎯 Featured Research Focus
+## 🎯 Your Personalized Research Focus
 
-{interest}
+{interests_content}
 
 ---
 
 ## 📊 Your Medical Interests
-**Specialties**: {user['medical_interests']}  
+**Specialties**: {', '.join(user['medical_interests'])}  
 
 ---
 
