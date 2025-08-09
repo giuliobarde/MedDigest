@@ -290,40 +290,42 @@ class FirebaseClient:
             logger.error(f"Failed to retrieve user subscriptions: {str(e)}")
             return None
 
-    def get_highest_rated_paper_focus(self, user_interests: str) -> str:
+    def get_highest_rated_paper_focus_per_interest(self, user_interests: List[str]) -> Dict[str, str]:
         """
-        Get the focus field of the highest rated paper in the user's medical interests.
+        Get the focus field of the highest rated paper for each individual medical interest.
         
         Args:
-            user_interests (str): Comma-separated list of user's medical interests
+            user_interests (List[str]): List of user's medical interests
             
         Returns:
-            str: Focus field of the highest rated paper, or a default message if none found
+            Dict[str, str]: Dictionary mapping each interest to its highest rated paper focus
         """
         try:
-            # Parse user interests
-            interests = [interest.strip() for interest in user_interests.split(',')]
+            interest_focuses = {}
             
-            # Get papers for each interest and find the highest rated one
-            highest_rated_paper = None
-            highest_score = 0.0
-            
-            for interest in interests:
+            for interest in user_interests:
                 # Get analyses for this specialty
                 analyses = self.get_analyses_by_specialty(interest, limit=50)
                 
                 # Find the highest rated paper in this specialty
+                highest_rated_paper = None
+                highest_score = 0.0
+                
                 for analysis in analyses:
                     score = analysis.get('interest_score', 0.0)
                     if score > highest_score:
                         highest_score = score
                         highest_rated_paper = analysis
+                
+                if highest_rated_paper and highest_rated_paper.get('focus'):
+                    interest_focuses[interest] = f"🎯 **{interest} Research Focus**: {highest_rated_paper['focus']}"
+                else:
+                    interest_focuses[interest] = f"🔬 **{interest}**: Stay updated with cutting-edge developments in {interest}."
             
-            if highest_rated_paper and highest_rated_paper.get('focus'):
-                return f"🎯 **Featured Research Focus**: {highest_rated_paper['focus']}"
-            else:
-                return "🔬 **Latest Medical Research**: Stay updated with cutting-edge developments in your fields of interest."
+            return interest_focuses
                 
         except Exception as e:
-            logger.error(f"Error getting highest rated paper focus: {e}")
-            return "🔬 **Latest Medical Research**: Stay updated with cutting-edge developments in your fields of interest."
+            logger.error(f"Error getting highest rated paper focus per interest: {e}")
+            # Return default messages for each interest
+            return {interest: f"🔬 **{interest}**: Stay updated with cutting-edge developments in {interest}." 
+                   for interest in user_interests}
