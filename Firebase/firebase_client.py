@@ -293,6 +293,7 @@ class FirebaseClient:
     def get_highest_rated_paper_focus_per_interest(self, user_interests: List[str]) -> Dict[str, str]:
         """
         Get the focus field of the highest rated paper for each individual medical interest.
+        Only considers papers from the latest newsletter generation.
         
         Args:
             user_interests (List[str]): List of user's medical interests
@@ -303,23 +304,52 @@ class FirebaseClient:
         try:
             interest_focuses = {}
             
+            # Get the latest digest to access papers from the latest newsletter generation
+            latest_digest = self.get_latest_digest()
+            if not latest_digest:
+                logger.warning("No latest digest found, returning default messages")
+                return {interest: f"🔬 **{interest}**: Stay updated with cutting-edge developments in {interest}." 
+                       for interest in user_interests}
+            
+            # Extract papers from the latest digest's specialty_data
+            latest_papers = {}
+            if 'specialty_data' in latest_digest:
+                for specialty, spec_info in latest_digest['specialty_data'].items():
+                    if 'papers' in spec_info:
+                        latest_papers[specialty] = spec_info['papers']
+            
+            # If no specialty_data in latest digest, try to get from digest_summary
+            if not latest_papers and 'digest_summary' in latest_digest:
+                digest_summary = latest_digest['digest_summary']
+                if 'specialty_data' in digest_summary:
+                    for specialty, spec_info in digest_summary['specialty_data'].items():
+                        if 'papers' in spec_info:
+                            latest_papers[specialty] = spec_info['papers']
+            
             for interest in user_interests:
-                # Get analyses for this specialty
-                analyses = self.get_analyses_by_specialty(interest, limit=50)
-                
-                # Find the highest rated paper in this specialty
-                highest_rated_paper = None
-                highest_score = 0.0
-                
-                for analysis in analyses:
-                    score = analysis.get('interest_score', 0.0)
-                    if score > highest_score:
-                        highest_score = score
-                        highest_rated_paper = analysis
-                
-                if highest_rated_paper and highest_rated_paper.get('focus'):
-                    interest_focuses[interest] = f"🎯 **{interest} Research Focus**: {highest_rated_paper['focus']}"
+                # Check if this interest has papers in the latest digest
+                if interest in latest_papers:
+                    papers = latest_papers[interest]
+                    
+                    # Find the highest rated paper in this specialty from latest digest
+                    highest_rated_paper = None
+                    highest_score = 0.0
+                    
+                    for paper in papers:
+                        # Get the full analysis for this paper to access interest_score
+                        paper_analysis = self.get_paper_analysis(paper.get('id', ''))
+                        if paper_analysis:
+                            score = paper_analysis.get('interest_score', 0.0)
+                            if score > highest_score:
+                                highest_score = score
+                                highest_rated_paper = paper_analysis
+                    
+                    if highest_rated_paper and highest_rated_paper.get('focus'):
+                        interest_focuses[interest] = f"🎯 **{interest} Research Focus**: {highest_rated_paper['focus']}"
+                    else:
+                        interest_focuses[interest] = f"🔬 **{interest}**: Stay updated with cutting-edge developments in {interest}."
                 else:
+                    # This interest wasn't covered in the latest newsletter
                     interest_focuses[interest] = f"🔬 **{interest}**: Stay updated with cutting-edge developments in {interest}."
             
             return interest_focuses
